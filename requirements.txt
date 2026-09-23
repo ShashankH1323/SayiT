@@ -1,0 +1,18 @@
+# versions pinned to recent stable; verify against PyPI before a release
+
+# STT
+faster-whisper==1.1.1
+# NOTE: faster-whisper/ctranslate2 may lack Python 3.14 wheels yet — if pip install fails, use Python 3.11-3.12 for the STT deps.
+
+# audio
+sounddevice==0.5.6
+soxr==1.1.0
+numpy>=2,<3
+
+# hotkey + paste
+keyboard==0.13.5
+pyperclip==1.11.0
+
+# CUDA math libs for GPU STT (ct2 loads cuBLAS + cuDNN 9 at runtime)
+nvidia-cublas-cu12>=12.3,<13; platform_system == "Windows"
+nvidia-cudnn-cu12>=9.1,<10; platform_system == "Windows"

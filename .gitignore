@@ -1,0 +1,12 @@
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# app
+*.db
+models/
+*.log
+.env
+*.env

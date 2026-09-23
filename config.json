@@ -1,0 +1,16 @@
+{
+  "hotkey": "ctrl+space",
+  "input_device": "Microphone (NVIDIA Broadcast)",
+  "samplerate": 16000,
+  "model": "large-v3-turbo",
+  "device": "cuda",
+  "compute_type": "float16",
+  "language": "en",
+  "output_language": "en",
+  "cleanup_mode": "light",
+  "stt_provider": "groq",
+  "groq_model": "whisper-large-v3",
+  "sound_effects": true,
+  "history_size": 50,
+  "paste_mode": "auto"
+}

@@ -1,0 +1,109 @@
+"""Self-test for wisper.audio. Runs with numpy + stdlib only.
+
+    python tests/test_audio.py
+"""
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import numpy as np
+
+import wisper.audio as audio
+from wisper.audio import resample, to_mono
+
+
+def test_to_mono():
+    sr = 48000
+    t = np.arange(sr, dtype=np.float32) / sr
+    tone = np.sin(2 * np.pi * 440.0 * t).astype(np.float32)
+    stereo = np.stack([tone, tone * 0.5], axis=1)  # (48000, 2)
+    m = to_mono(stereo)
+    assert m.shape == (48000,), m.shape
+    assert m.dtype == np.float32, m.dtype
+    assert to_mono(tone).shape == (48000,)  # 1-D passthrough
+
+
+def test_resample():
+    orig_sr, target_sr = 48000, 16000
+    t = np.arange(orig_sr, dtype=np.float32) / orig_sr
+    tone = np.sin(2 * np.pi * 220.0 * t).astype(np.float32)  # 1 s @ 48 kHz
+    out = resample(tone, orig_sr, target_sr)
+    assert out.dtype == np.float32, out.dtype
+    assert abs(len(out) - 16000) <= 5, len(out)
+    assert not np.any(np.isnan(out)), "resample produced NaNs"
+
+
+# --- BUG 1: mic released on a failed open; stop() idempotent -----------------
+class _FakeStream:
+    """InputStream stand-in whose start() fails, so we can prove close() runs."""
+    def __init__(self, **kw):
+        self.closed = self.stopped = False
+
+    def start(self):
+        raise RuntimeError("fake: device could not start")
+
+    def stop(self):
+        self.stopped = True
+
+    def close(self):
+        self.closed = True
+
+
+class _FakeSD:
+    """Minimal sounddevice: one MME input device; InputStream.start() raises."""
+    PortAudioError = type("PortAudioError", (Exception,), {})
+
+    def __init__(self):
+        self.streams = []
+        self.default = type("d", (), {"device": (0, 0)})()
+
+    def query_hostapis(self, index=None):
+        apis = [{"name": "MME", "default_input_device": 0}]
+        return apis[index] if index is not None else apis
+
+    def query_devices(self, dev=None, kind=None):
+        devs = [{"name": "Fake Mic", "max_input_channels": 1,
+                 "hostapi": 0, "default_samplerate": 48000.0}]
+        return devs if dev is None else devs[dev]
+
+    def InputStream(self, **kw):
+        s = _FakeStream(**kw)
+        self.streams.append(s)
+        return s
+
+
+def test_stop_idempotent_no_stream():
+    cap = audio.AudioCapture()
+    out = cap.stop()            # nothing was ever opened
+    assert cap._stream is None
+    assert out.shape == (0,), out.shape
+    cap.stop()                  # double stop stays safe
+    assert cap._stream is None
+
+
+def test_failed_start_releases_device():
+    orig = audio._sd
+    audio._sd = fake = _FakeSD()
+    try:
+        cap = audio.AudioCapture()
+        err = None
+        try:
+            cap.start()
+        except Exception as e:  # every candidate fails -> propagates
+            err = e
+        assert err is not None, "start() must raise once all candidates fail"
+        assert fake.streams, "InputStream was never constructed"
+        assert fake.streams[-1].closed, "opened device not closed -> mic leak"
+        assert cap._stream is None, "self._stream must be None after failed start"
+        assert not cap.is_recording()
+    finally:
+        audio._sd = orig
+
+
+if __name__ == "__main__":
+    test_to_mono()
+    test_resample()
+    test_stop_idempotent_no_stream()
+    test_failed_start_releases_device()
+    print("audio self-test PASSED")
