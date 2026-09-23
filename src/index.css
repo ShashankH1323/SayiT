@@ -135,4 +135,18 @@
   /* Frameless window drag regions (pywebview / Chromium). */
   .drag { -webkit-app-region: drag; app-region: drag; }
   .no-drag { -webkit-app-region: no-drag; app-region: no-drag; }
+
+  @keyframes wave-bounce {
+    0%, 100% {
+      height: 4px;
+      transform: translateY(0);
+    }
+    50% {
+      height: 18px;
+      transform: translateY(-1px);
+    }
+  }
+  .animate-wave-bounce {
+    animation: wave-bounce 0.9s ease-in-out infinite;
+  }
 }

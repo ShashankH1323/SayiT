@@ -92,6 +92,15 @@ class Api:
         self.app.cancel()
         return None
 
+    def start_preview(self, device=None):
+        dev = _bare_device_name(device)
+        self.app.audio.start_monitor(dev)
+        return None
+
+    def stop_preview(self):
+        self.app.audio.stop_monitor()
+        return None
+
     # --- devices ----------------------------------------------------------
     def list_devices(self):
         return [label for label, _ in audio.list_input_devices()]
@@ -104,6 +113,8 @@ class Api:
         self.app.audio.device = dev
         self.app.config.input_device = dev
         self.app.config.save()
+        if getattr(self.app.audio, "_monitoring", False):
+            self.app.audio.start_monitor(dev)
         return None
 
     # --- settings ---------------------------------------------------------

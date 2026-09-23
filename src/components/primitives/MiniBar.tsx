@@ -13,20 +13,45 @@ export interface MiniBarProps {
   className?: string;
 }
 
-// Symmetric-ish weights so the waveform reads as a live meter, not a flat row.
-const BAR_WEIGHTS = [0.45, 0.7, 1, 0.85, 0.55, 0.9, 0.6];
+const WAVE_WEIGHTS = [0.4, 0.65, 0.85, 1.0, 0.95, 0.7, 0.85, 1.0, 0.9, 0.6, 0.45, 0.35];
 
-function AudioBars({ level = 0 }: { level?: number }) {
+export function WaveformDots({
+  level = 0,
+  animated = false,
+  className,
+}: {
+  level?: number;
+  animated?: boolean;
+  className?: string;
+}) {
   const l = Math.min(1, Math.max(0, level));
+  // Sensitively boost speech so natural speech levels (~0.15 - 0.4) dynamically animate
+  const dynamicLevel = Math.min(1, l * 2.5);
+
   return (
-    <div className="flex h-6 items-center gap-[3px]" aria-hidden="true">
-      {BAR_WEIGHTS.map((w, i) => (
-        <span
-          key={i}
-          className="w-[3px] rounded-pill bg-teal transition-[height] duration-100 ease-out"
-          style={{ height: `${Math.max(3, l * w * 22)}px` }}
-        />
-      ))}
+    <div className={cn("flex h-7 items-center justify-center gap-1 px-1", className)} aria-hidden="true">
+      {WAVE_WEIGHTS.map((w, i) => {
+        const minHeight = 4;
+        const maxHeight = 22;
+        const height = animated
+          ? undefined
+          : Math.max(minHeight, minHeight + dynamicLevel * w * (maxHeight - minHeight));
+
+        return (
+          <span
+            key={i}
+            className={cn(
+              "w-[3.5px] rounded-full bg-teal transition-all duration-75 ease-out",
+              animated && "animate-wave-bounce",
+            )}
+            style={{
+              height: animated ? undefined : `${height}px`,
+              animationDelay: animated ? `${i * 75}ms` : undefined,
+              opacity: animated ? 0.85 : Math.max(0.45, Math.min(1, 0.45 + dynamicLevel * 0.55)),
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -76,12 +101,6 @@ export function MiniBar({
               : "bg-accent-soft text-accent hover:bg-accent/15",
           )}
         >
-          {state === "listening" && (
-            <span
-              className="absolute inset-0 rounded-pill bg-teal/30 animate-ping"
-              aria-hidden="true"
-            />
-          )}
           <Mic className="relative h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden="true" />
         </button>
       ) : state === "processing" ? (
@@ -116,9 +135,12 @@ export function MiniBar({
           ) : (
             <DottedIndicator />
           ))}
-        {state === "listening" && <AudioBars level={level} />}
+        {state === "listening" && <WaveformDots level={level} />}
         {state === "processing" && (
-          <span className="text-label text-ink-secondary">Transcribing…</span>
+          <div className="flex items-center gap-2">
+            <WaveformDots animated />
+            <span className="text-caption font-medium text-ink-secondary">Transcribing…</span>
+          </div>
         )}
         {state === "pasted" && (
           <span className="flex min-w-0 items-center gap-2">

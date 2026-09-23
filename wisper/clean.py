@@ -300,7 +300,7 @@ class RuleCleaner:
 
         t = _normalize_unicode(t)
 
-        if mode_norm == "rule":
+        if mode_norm == "rule" or (mode_norm == "light" and len(t.split()) < 7):
             return _merge_stub_paragraphs(t, min_words=50)
 
         if mode_norm in ("light", "casual", "formal", "structured", "format"):

@@ -15,6 +15,8 @@ export type OnboardingStep = "splash" | "welcome" | "permissions" | "ready" | nu
 export interface AppActions {
   toggle(): Promise<void>;
   cancel(): Promise<void>;
+  startPreview(device?: string): Promise<void>;
+  stopPreview(): Promise<void>;
   setDevice(name: string): Promise<void>;
   refreshDevices(): Promise<void>;
   setSetting<K extends keyof Settings>(key: K, value: Settings[K]): Promise<void>;
@@ -94,7 +96,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           toastTimer.current = setTimeout(() => setPastedToast(null), TOAST_MS);
         }
         prevStatus.current = next;
-      }, 200);
+      }, 60);
     }).catch(() => {});
     return () => { alive = false; unsub(); if (toastTimer.current) clearTimeout(toastTimer.current); };
   }, []);
@@ -102,6 +104,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const actions = useMemo<AppActions>(() => ({
     async toggle() { try { await api.toggle(); } catch (e) { console.error(e); } },
     async cancel() { try { await api.cancel(); } catch (e) { console.error(e); } },
+    async startPreview(device?: string) { try { await api.start_preview(device); } catch (e) { console.error(e); } },
+    async stopPreview() { try { await api.stop_preview(); } catch (e) { console.error(e); } },
     async setDevice(name) {
       setSettings((p) => (p ? ({ ...p, input_device: name || null }) : p));
       try { await api.set_device(name); } catch (e) { console.error(e); }

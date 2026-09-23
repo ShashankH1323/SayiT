@@ -12,16 +12,10 @@ export interface WindowFrameProps {
   className?: string;
 }
 
-const DOTS = ["#FF6B60", "#FEBC2E", "#2ACB42"];
-
 export function WindowFrame({ title, onMinimize, onClose, right, className }: WindowFrameProps) {
   return (
     <div className={cn("drag relative flex h-11 shrink-0 items-center justify-between px-4", className)}>
-      <div aria-hidden className="flex items-center gap-2">
-        {DOTS.map((c) => (
-          <span key={c} className="h-3 w-3 rounded-full" style={{ backgroundColor: c }} />
-        ))}
-      </div>
+      <div className="w-16" />
 
       {title && (
         <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-label font-medium text-ink-secondary">

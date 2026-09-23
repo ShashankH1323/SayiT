@@ -136,6 +136,9 @@ class AudioCapture:
         self._native_sr: int | None = None
         self.xruns = 0  # count of callback status flags (overruns), for logging
         self._last_ok_device: int | None = None  # index that last opened cleanly
+        self._monitoring = False
+        self._monitor_stream = None
+        self._monitor_level = 0.0
 
     def _pick_explicit(self, hostapis, devices) -> int | None:
         """Resolve an explicit :attr:`device` to a live input index, else None.
@@ -230,6 +233,8 @@ class AudioCapture:
             )
         if self._recording:
             return
+        if self._monitoring:
+            self.stop_monitor()
         self._frames = []
         self.xruns = 0
         # Try each candidate host API in order; some (e.g. WDM-KS if it ever
@@ -326,11 +331,74 @@ class AudioCapture:
     def is_recording(self) -> bool:
         return self._recording
 
+    def _monitor_callback(self, indata, frames, time_info, status) -> None:
+        if indata.size:
+            cur = float(np.abs(indata).max())
+            # Smooth peak with quick decay
+            self._monitor_level = max(cur, self._monitor_level * 0.72)
+        else:
+            self._monitor_level = 0.0
+
+    def start_monitor(self, device=None) -> None:
+        """Open a lightweight, non-recording input stream for device preview / UI waveform."""
+        if _sd is None or self._recording:
+            return
+        self.stop_monitor()
+        old_dev = self.device
+        if device is not None:
+            self.device = device
+        try:
+            candidates = self._input_candidates()
+            if not candidates:
+                return
+            dev = candidates[0]
+            info = _sd.query_devices(dev, "input")
+            sr = int(round(info["default_samplerate"]))
+            channels = min(max(1, int(info["max_input_channels"])), 2)
+            hostapi_name = _sd.query_hostapis(info["hostapi"])["name"]
+            extra = None
+            if "WASAPI" in hostapi_name and hasattr(_sd, "WasapiSettings"):
+                extra = _sd.WasapiSettings()
+            self._monitor_stream = _sd.InputStream(
+                device=dev,
+                channels=channels,
+                samplerate=sr,
+                dtype="float32",
+                blocksize=int(sr * 0.03),
+                callback=self._monitor_callback,
+                extra_settings=extra,
+            )
+            self._monitor_stream.start()
+            self._monitoring = True
+            log.info("audio monitor: running on device %d (%s)", dev, hostapi_name)
+        except Exception as e:
+            log.debug("audio monitor start failed: %s", e)
+            self.stop_monitor()
+        finally:
+            if device is not None:
+                self.device = old_dev
+
+    def stop_monitor(self) -> None:
+        """Stop the non-recording audio monitor."""
+        s, self._monitor_stream = self._monitor_stream, None
+        self._monitoring = False
+        self._monitor_level = 0.0
+        if s is not None:
+            try:
+                s.stop()
+            except Exception:
+                pass
+            try:
+                s.close()
+            except Exception:
+                pass
+
     def current_level(self) -> float:
         """Peak absolute amplitude (~0..1) of the most recently captured audio
-        block, or 0.0 when not recording / no data yet. For a live UI meter."""
-        frames = self._frames  # local ref: stop() swaps in a new list, never mutates this one
-        if not self._recording or not frames:
-            return 0.0
-        block = frames[-1]
-        return float(np.abs(block).max()) if block.size else 0.0
+        block, or monitor level when previewing. For a live UI meter."""
+        if self._recording and self._frames:
+            block = self._frames[-1]
+            return float(np.abs(block).max()) if block.size else 0.0
+        if self._monitoring:
+            return float(self._monitor_level)
+        return 0.0

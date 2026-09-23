@@ -1,44 +1,123 @@
-// Onboarding 03 — Permissions. Informational only (no bridge permission call).
-// Shows the detected mic from useApp().devices[0] when present. Full-window.
-// Actions: "Continue" -> setOnboarding("ready"); "Back" -> setOnboarding("welcome").
-import { Mic, ArrowLeft } from "lucide-react";
+// Onboarding 03 — Permissions & Input Device Setup.
+// Allows dynamic auto-detection & switching of input device,
+// and shows a live audio waveform visualizer of the input device.
+import { useEffect, useState } from "react";
+import { Mic, ArrowLeft, RefreshCw, CheckCircle2 } from "lucide-react";
 import { useApp } from "../../lib/appContext";
+import { cn } from "../../lib/utils";
 import { SoftBlobBackground } from "../primitives/SoftBlobBackground";
 import { GlassButton } from "../primitives/GlassButton";
 import { IconOrb } from "../primitives/IconOrb";
 import { PaginationDots } from "../primitives/PaginationDots";
+import { SelectField } from "../app/SettingsShell";
+import { WaveformDots } from "../primitives/MiniBar";
+
+const bareName = (s: string) => s.split("—")[0].trim();
 
 export function Permissions() {
-  const { devices, actions } = useApp();
-  const mic = devices && devices.length > 0 ? devices[0] : null;
+  const { status, devices, settings, actions } = useApp();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const currentDev = settings?.input_device || "";
+
+  // Start live mic preview when on this screen; stop on exit
+  useEffect(() => {
+    actions.startPreview(currentDev);
+    return () => {
+      actions.stopPreview();
+    };
+  }, [currentDev, actions]);
+
+  const micOptions = [
+    { value: "", label: "Auto-detect (System Default)" },
+    ...devices.map((d) => ({ value: d, label: d })),
+  ];
+
+  // Match current setting to options
+  let selectedValue = "";
+  if (currentDev) {
+    const found = devices.find((d) => d === currentDev || bareName(d) === bareName(currentDev));
+    if (found) {
+      selectedValue = found;
+    } else {
+      selectedValue = currentDev;
+      micOptions.push({ value: currentDev, label: `${bareName(currentDev)} (Current)` });
+    }
+  }
+
+  const isSpeaking = status.level > 0.035;
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-canvas-soft">
       <SoftBlobBackground variant="full" />
 
-      <main className="flex flex-1 flex-col items-center justify-center gap-5 px-12 text-center duration-500 animate-in fade-in-0 slide-in-from-bottom-2">
+      <main className="flex flex-1 flex-col items-center justify-center gap-5 px-8 text-center duration-500 animate-in fade-in-0 slide-in-from-bottom-2">
         <div className="relative flex items-center justify-center">
           <div aria-hidden className="absolute h-32 w-32 rounded-full bg-accent-soft opacity-70 blur-2xl" />
-          <IconOrb icon={<Mic size={32} strokeWidth={1.75} />} tone="accent" size={88} className="relative" />
+          <IconOrb
+            icon={<Mic size={32} strokeWidth={1.75} />}
+            tone={isSpeaking ? "teal" : "accent"}
+            size={88}
+            className="relative transition-colors duration-300"
+          />
         </div>
 
         <div className="flex flex-col items-center gap-2">
-          <h1 className="text-display font-display text-ink">Microphone access</h1>
-          <p className="max-w-sm text-body text-secondary">
-            Say It listens through your microphone to transcribe what you say. Audio is processed
-            locally and never leaves your device.
+          <h1 className="text-display font-display text-ink">Microphone setup</h1>
+          <p className="max-w-sm text-body text-ink-secondary">
+            Say It listens through your microphone to transcribe speech instantly. Your voice stays private and local.
           </p>
         </div>
 
-        {mic && (
-          <span className="inline-flex items-center gap-2 rounded-pill glass px-3.5 py-1.5 text-caption text-secondary">
-            <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-pill bg-teal" />
-            Detected: <span className="font-medium text-ink">{mic}</span>
-          </span>
-        )}
+        {/* Dynamic device picker with auto-detect and refresh */}
+        <div className="flex items-center gap-2 max-w-sm w-full justify-center">
+          <SelectField
+            aria-label="Microphone"
+            value={selectedValue}
+            options={micOptions}
+            className="w-full max-w-[260px] text-caption truncate"
+            onValueChange={async (v) => {
+              await actions.setDevice(v);
+              await actions.startPreview(v);
+            }}
+          />
+          <GlassButton
+            variant="secondary"
+            size="sm"
+            aria-label="Refresh microphones"
+            disabled={refreshing}
+            icon={<RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />}
+            onClick={async () => {
+              setRefreshing(true);
+              try {
+                await actions.refreshDevices();
+              } finally {
+                setRefreshing(false);
+              }
+            }}
+          />
+        </div>
+
+        {/* Live Audio Waveform card */}
+        <div className="flex flex-col items-center gap-2 rounded-2xl glass px-6 py-3.5 min-w-[280px] max-w-[340px] shadow-soft-sm">
+          <div className="flex items-center justify-center h-8 w-full">
+            <WaveformDots level={status.level} className="gap-1.5" />
+          </div>
+          <div className="flex items-center gap-1.5 text-caption transition-colors duration-200">
+            {isSpeaking ? (
+              <span className="flex items-center gap-1.5 font-medium text-teal-deep">
+                <CheckCircle2 className="h-3.5 w-3.5 text-teal" /> Microphone working properly
+              </span>
+            ) : (
+              <span className="text-ink-tertiary">
+                Speak into your mic to test audio…
+              </span>
+            )}
+          </div>
+        </div>
       </main>
 
-      <footer className="flex flex-col items-center gap-3 pb-9">
+      <footer className="flex flex-col items-center gap-3 pb-8">
         <GlassButton
           variant="primary"
           size="lg"

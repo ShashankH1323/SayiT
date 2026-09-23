@@ -78,9 +78,6 @@ export function Home() {
             processing ? "cursor-default opacity-90" : "hover:scale-[1.03] active:scale-95",
           )}
         >
-          {listening && (
-            <span className="absolute inset-0 rounded-full bg-teal/25 animate-ping" aria-hidden="true" />
-          )}
           <IconOrb
             icon={<Mic className="h-10 w-10" strokeWidth={1.75} aria-hidden="true" />}
             tone={listening ? "teal" : "accent"}

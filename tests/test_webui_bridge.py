@@ -27,6 +27,13 @@ class FakeCapture:
     def __init__(self):
         self.device = None
         self._level = 0.0
+        self._monitoring = False
+
+    def start_monitor(self, dev=None):
+        self._monitoring = True
+
+    def stop_monitor(self):
+        self._monitoring = False
 
     def current_level(self):
         return self._level
@@ -174,6 +181,10 @@ def test_status_and_control():
     check("toggle returns None", api.toggle() is None)
     check("cancel returns None", api.cancel() is None)
     check("toggle/cancel routed", app.calls == [("toggle",), ("cancel",)], app.calls)
+    check("start_preview returns None", api.start_preview() is None)
+    check("start_preview set monitoring", app.audio._monitoring is True)
+    check("stop_preview returns None", api.stop_preview() is None)
+    check("stop_preview stopped monitoring", app.audio._monitoring is False)
 
 
 def test_settings_options():

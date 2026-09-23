@@ -19,12 +19,13 @@ function clamp01(v: number): number {
 const mockApi = (() => {
   let state: Status["state"] = "idle", lastText = "", t0 = 0;
   let lastError: string | null = null;
+  let previewActive = false;
   const devs: DeviceInfo[] = [
     "Pebble Comet Headset — WASAPI", "WO Mic Device — WASAPI",
     "Realtek(R) Audio — WASAPI", "Microphone Array — WASAPI",
   ];
   const st: Settings = {
-    hotkey: "ctrl+alt+space", input_device: "Pebble Comet Headset",
+    hotkey: "ctrl+space", input_device: null,
     model: "large-v3-turbo", device: "cuda", compute_type: "float16",
     samplerate: 16000, language: "en", output_language: "en",
     cleanup_mode: "light", stt_provider: "groq",
@@ -50,12 +51,14 @@ const mockApi = (() => {
   return {
     get_status(): Promise<Status> {
       let level = 0;
-      if (state === "recording") {
+      if (state === "recording" || previewActive) {
         const s = (performance.now() - t0) / 1000;
-        level = clamp01(0.42 + 0.4 * Math.sin(s * 7.5) * (0.5 + 0.5 * Math.sin(s * 2.3)) + (Math.random() - 0.5) * 0.16);
+        level = clamp01(0.38 + 0.35 * Math.sin(s * 7.5) * (0.5 + 0.5 * Math.sin(s * 2.3)) + (Math.random() - 0.5) * 0.15);
       }
       return delay({ state, last_text: lastText, last_error: lastError, level });
     },
+    start_preview(device?: string): Promise<null> { previewActive = true; t0 = performance.now(); return delay(null); },
+    stop_preview(): Promise<null> { previewActive = false; return delay(null); },
     toggle(): Promise<null> {
       if (state === "idle" || state === "error") { state = "recording"; lastError = null; t0 = performance.now(); }
       else if (state === "recording") {
@@ -105,6 +108,8 @@ export const api = {
   get_status: (): Promise<Status> => Promise.resolve(backend().get_status()),
   toggle: (): Promise<null> => Promise.resolve(backend().toggle()),
   cancel: (): Promise<null> => Promise.resolve(backend().cancel()),
+  start_preview: (device?: string): Promise<null> => Promise.resolve(backend().start_preview ? backend().start_preview(device) : null),
+  stop_preview: (): Promise<null> => Promise.resolve(backend().stop_preview ? backend().stop_preview() : null),
   list_devices: (): Promise<DeviceInfo[]> => Promise.resolve(backend().list_devices()),
   refresh_devices: (): Promise<DeviceInfo[]> => Promise.resolve(backend().refresh_devices()),
   set_device: (name: string): Promise<null> => Promise.resolve(backend().set_device(name)),
@@ -136,8 +141,8 @@ export function bridgeReady(): Promise<void> {
 }
 
 /* Polls get_status and invokes cb with each Status; returns an unsubscribe fn.
- * Re-polls after each response settles (no overlap), like app.js's ~30fps loop. */
-export function subscribeStatus(cb: (s: Status) => void, intervalMs = 200): () => void {
+ * Re-polls after each response settles (no overlap), at ~16fps for smooth meters. */
+export function subscribeStatus(cb: (s: Status) => void, intervalMs = 60): () => void {
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const tick = () => {

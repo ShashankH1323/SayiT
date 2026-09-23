@@ -22,15 +22,15 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: () =
       aria-label={label}
       onClick={onChange}
       className={cn(
-        "no-drag relative h-6 w-11 shrink-0 rounded-pill transition-colors",
+        "no-drag relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-pill border-2 border-transparent transition-colors duration-200 ease-in-out",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2",
         checked ? "bg-accent" : "bg-ink/15",
       )}
     >
       <span
         className={cn(
-          "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-soft-sm transition-transform",
-          checked ? "translate-x-[22px]" : "translate-x-0.5",
+          "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-soft-sm ring-0 transition duration-200 ease-in-out",
+          checked ? "translate-x-5" : "translate-x-0",
         )}
       />
     </button>

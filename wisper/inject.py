@@ -62,4 +62,3 @@ def paste_text(text: str, mode: str = "auto") -> None:
         keyboard.send(keys)       # attempt paste keystroke
     except Exception:
         pass
-    time.sleep(PASTE_TO_RESTORE_DELAY)
