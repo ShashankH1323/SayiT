@@ -1,4 +1,4 @@
-# Wisper — 01: System Architecture & Data Flow
+# Say It — 01: System Architecture & Data Flow
 
 Status: design draft · Date: 2026-09-22 · Scope: end-to-end architecture only.
 Deep-dives live in sibling docs: STT models/benchmarks (`02`), Indic + translation
@@ -7,7 +7,7 @@ cleanup prompts (`06`). This doc references them by name and does not repeat the
 
 ---
 
-## 1. What Wisper is (one paragraph)
+## 1. What Say It is (one paragraph)
 
 A single always-on **local background service**. A global hotkey toggles recording
 on; the user speaks; the hotkey again stops it; the service transcribes the whole
@@ -39,7 +39,7 @@ All modules are plain Python objects behind small interfaces (§11). Everything 
 
 ```
                         ┌─────────────────────────────────────────────┐
-                        │            Wisper Core (one process)          │
+                        │            Say It Core (one process)          │
                         │                                               │
   [Global Hotkey] ─────►│  hotkey ──► StateMachine ◄── event bus (queue)│
                         │                 │                             │
@@ -176,7 +176,7 @@ STOP:      only the short trailing segment remains → transcribe tail (fast)
 - On stop, nearly all audio is already transcribed, so perceived latency ≈ tail
   transcribe + clean, roughly constant regardless of utterance length.
 - Borrows the **LocalAgreement-2** idea from `whisper_streaming` (commit a prefix
-  once two successive passes agree) to keep confirmed text stable, but Wisper only
+  once two successive passes agree) to keep confirmed text stable, but Say It only
   *displays/pastes on stop* — partials are internal, never pasted, so we sidestep the
   hardest part of live streaming (flickering output).
 - Cleanup and translation still run **once on the full concatenated transcript** at

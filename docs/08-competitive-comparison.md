@@ -1,10 +1,10 @@
-# Competitive Comparison — Wisper vs. the 2026 Dictation Landscape
+# Competitive Comparison — Say It vs. the 2026 Dictation Landscape
 
-> Scope: how Wisper (fully local, free, open-source dictation for Windows 11 +
+> Scope: how Say It (fully local, free, open-source dictation for Windows 11 +
 > NVIDIA CUDA) stacks up against paid/cloud dictation and STT productivity tools.
 > Honest analysis. Prices marked **unverified (2026)** were not confirmed against
 > live sources at write time (web search was unavailable) — treat them as
-> from-memory estimates, not quotes. Performance figures for Wisper are
+> from-memory estimates, not quotes. Performance figures for Say It are
 > **targets/estimates**, not measured benchmarks.
 
 ---
@@ -13,19 +13,19 @@
 
 Speech-to-text productivity tools cluster into a few camps: cloud-first "flow"
 dictation apps, local/hybrid whisper wrappers, OS built-ins, accessibility-grade
-command engines, and legacy pro dictation. Wisper sits in the local/hybrid camp
+command engines, and legacy pro dictation. Say It sits in the local/hybrid camp
 but aims at the flow-app workflow.
 
 **Wispr Flow** (reference competitor) — Cloud dictation with aggressive text
 cleanup and tone/formatting. Global hotkey → speak → paste-anywhere workflow, the
-model Wisper follows. Cloud STT + LLM cleanup. Subscription; a limited free tier
+model Say It follows. Cloud STT + LLM cleanup. Subscription; a limited free tier
 has existed. macOS + Windows. **Price: unverified (2026)** — roughly ~$12–15/mo or
 ~$99–180/yr range from memory.
 
 **Superwhisper** (macOS, with Windows work reported) — Local Whisper-family models
 on-device, plus optional cloud/LLM modes. Strong privacy story, model picker, mode
 presets. One-time + subscription tiers historically. **Price: unverified (2026).**
-Closest philosophical peer to Wisper, but Apple-Silicon-centric.
+Closest philosophical peer to Say It, but Apple-Silicon-centric.
 
 **Aqua Voice** — Cloud dictation positioned on speed and "thinking out loud →
 clean text." Fast perceived latency via streaming. Subscription. **Price:
@@ -43,7 +43,7 @@ history. Zero cost, zero setup.
 
 **macOS Dictation / Voice Control** — Free, on-device for many languages on Apple
 Silicon. Decent English, limited formatting/cleanup, no cross-app "flow" polish.
-Not relevant to Wisper's Windows-first target beyond feature parity reference.
+Not relevant to Say It's Windows-first target beyond feature parity reference.
 
 **Dragon (Nuance / Microsoft)** — Legacy professional dictation, strong domain
 accuracy (medical/legal), heavy local install. Historically expensive perpetual /
@@ -52,7 +52,7 @@ pro pricing; consumer Dragon on Windows has been wound down. **Price: unverified
 
 **Others worth noting** — VoiceInk / WhisperType / various open Whisper wrappers
 (local, free/cheap, hobbyist UX); OpenAI Whisper / faster-whisper / whisper.cpp as
-the *engines* many of these build on (Wisper included); browser/Google dictation
+the *engines* many of these build on (Say It included); browser/Google dictation
 (cloud, free, weak workflow).
 
 ---
@@ -63,7 +63,7 @@ Legend: ✅ strong · ➖ partial/weak · ❌ absent · "?" unverified.
 
 | Tool | Latency / perceived speed | Accuracy (EN) | Accuracy (Indic/non-EN) | Language coverage | Privacy | Cost | Offline | OS | Customization | Workflow (format/history) |
 |---|---|---|---|---|---|---|---|---|---|---|
-| **Wisper** (this) | Fast target: no net round-trip; GPU decode | ✅ (large-v3) | ✅ target (Hindi/Kannada/Indic) | ~90+ (Whisper) | ✅ fully on-device | **Free / OSS** | ✅ full | Windows 11 (CUDA) | ✅ open source, full | ✅ cleanup + history (local) |
+| **Say It** (this) | Fast target: no net round-trip; GPU decode | ✅ (large-v3) | ✅ target (Hindi/Kannada/Indic) | ~90+ (Whisper) | ✅ fully on-device | **Free / OSS** | ✅ full | Windows 11 (CUDA) | ✅ open source, full | ✅ cleanup + history (local) |
 | **Wispr Flow** | ✅ very fast (streaming cloud) | ✅ | ➖ varies | Broad | ❌ cloud | Paid sub ? | ❌ | mac + Win | ➖ | ✅ polished cleanup/format |
 | **Superwhisper** | ✅ fast (local) | ✅ | ➖–✅ (model-dep) | Whisper-based | ✅ local modes | Paid ? | ✅ (local modes) | mac (Win?) | ✅ modes/models | ✅ modes, history |
 | **Aqua Voice** | ✅ very fast | ✅ | ➖ | Broad | ❌ cloud | Paid sub ? | ❌ | mac + Win | ➖ | ✅ |
@@ -74,7 +74,7 @@ Legend: ✅ strong · ➖ partial/weak · ❌ absent · "?" unverified.
 
 ---
 
-## 3. Where local (Wisper) wins
+## 3. Where local (Say It) wins
 
 - **Privacy — audio never leaves the device.** No upload, no vendor retention, no
   account. This is categorical, not incremental: cloud tools *cannot* offer it.
@@ -83,7 +83,7 @@ Legend: ✅ strong · ➖ partial/weak · ❌ absent · "?" unverified.
 - **Zero cost / no subscription.** Free and open source. No per-seat, per-month,
   or per-minute metering. Cost scales to $0 regardless of usage.
 - **No network round-trip.** Cloud latency floor = mic → upload → queue → decode →
-  return. Wisper removes upload/queue/return entirely; latency is bounded only by
+  return. Say It removes upload/queue/return entirely; latency is bounded only by
   local GPU decode.
 - **Offline / air-gapped.** Works on planes, in secure facilities, with bad Wi-Fi.
   Cloud tools degrade to unusable.
@@ -95,9 +95,9 @@ Legend: ✅ strong · ➖ partial/weak · ❌ absent · "?" unverified.
 
 ---
 
-## 4. Where cloud/paid win — and how Wisper closes the gap
+## 4. Where cloud/paid win — and how Say It closes the gap
 
-| Cloud/paid advantage | Reality | Can Wisper close it? |
+| Cloud/paid advantage | Reality | Can Say It close it? |
 |---|---|---|
 | **Huge server models** | Cloud runs larger models than a consumer GPU. | **Mostly.** whisper large-v3 + Indic fine-tunes on a mid-range NVIDIA GPU are strong. Gap narrows to hard accents/noise; realistically *close*, not always equal. |
 | **Zero setup** | Cloud is install-and-go. | **Partially.** Local needs CUDA + model download. Mitigate with a one-click installer, bundled model, auto driver check. Never quite as frictionless. |
@@ -107,7 +107,7 @@ Legend: ✅ strong · ➖ partial/weak · ❌ absent · "?" unverified.
 
 Honest note: on the **hardest** accuracy cases (heavy accents, cross-talk, poor
 mics, rare Indic dialects) the largest cloud/LLM-assisted stacks may still edge
-ahead. Wisper's answer is bigger local models + tunable Indic fine-tunes + local
+ahead. Say It's answer is bigger local models + tunable Indic fine-tunes + local
 LLM cleanup, which closes most but not necessarily all of it.
 
 ---
@@ -129,7 +129,7 @@ measured benchmarks — validate on real hardware.
   phrases; longer dictations scale roughly with audio length ÷ decode speed.
 - **vs. Wispr Flow:** cloud has an unavoidable network floor (upload + queue +
   return, commonly a few hundred ms to a couple seconds depending on connection).
-  Wisper's credible claim: **match or beat perceived stop→paste latency on a warm
+  Say It's credible claim: **match or beat perceived stop→paste latency on a warm
   local GPU with a good model**, while giving up nothing on privacy or cost. We do
   **not** claim to beat the largest cloud models on worst-case accuracy.
 
@@ -140,7 +140,7 @@ accuracy for latency — expose this as a user setting.
 
 ## 6. Positioning / differentiators
 
-Wisper's one-liner: **the private, free, offline Wispr Flow — dictate anywhere on
+Say It's one-liner: **the private, free, offline Wispr Flow — dictate anywhere on
 Windows with no subscription and no audio ever leaving your machine, with
 first-class Indic language support.**
 
@@ -168,7 +168,7 @@ absolute worst-case accuracy against the biggest cloud+LLM stacks.
   exists in 2026; assumed cloud here.
 - **Win11 `Win+H` cloud vs. local** — varies by version/region; Voice Access is
   local, legacy dictation may be cloud. Verify.
-- **Wisper latency targets unbenchmarked** — must measure on target hardware
+- **Say It latency targets unbenchmarked** — must measure on target hardware
   (cold vs. warm, model tier, cleanup on/off).
 - **Indic accuracy** depends on which fine-tunes ship; large-v3 baseline Indic
   quality varies by language — Kannada may need dedicated fine-tunes.

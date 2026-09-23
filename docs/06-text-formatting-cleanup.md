@@ -1,6 +1,6 @@
 # 06 — Text Formatting & Cleanup
 
-_Wisper: fully local, free alternative to Wispr Flow. Windows 11 + NVIDIA CUDA. Multilingual (English, Hindi, Kannada, other Indic)._
+_Say It: fully local, free alternative to Wispr Flow. Windows 11 + NVIDIA CUDA. Multilingual (English, Hindi, Kannada, other Indic)._
 
 This document covers the stage that runs **after** the raw transcript arrives and **before** it is pasted at the cursor: turning a messy spoken transcript into clean text without changing what the user meant.
 

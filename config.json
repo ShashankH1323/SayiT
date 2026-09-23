@@ -9,7 +9,7 @@
   "output_language": "en",
   "cleanup_mode": "light",
   "stt_provider": "groq",
-  "groq_model": "whisper-large-v3",
+  "groq_model": "whisper-large-v3-turbo",
   "sound_effects": true,
   "history_size": 50,
   "paste_mode": "auto"
