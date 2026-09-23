@@ -84,7 +84,7 @@ export function SelectField({ value, options, onValueChange, className, ...rest 
         value={value}
         onChange={(e) => onValueChange(e.target.value)}
         className={cn(
-          "no-drag h-9 min-w-[9rem] max-w-[15rem] cursor-pointer appearance-none rounded-field border border-hairline bg-white pl-3 pr-9 text-label text-ink",
+          "no-drag h-9 w-36 cursor-pointer appearance-none rounded-field border border-hairline bg-white pl-3 pr-8 text-label text-ink truncate",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1",
           className,
         )}

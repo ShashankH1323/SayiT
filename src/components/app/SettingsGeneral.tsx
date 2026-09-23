@@ -2,7 +2,7 @@
  * useApp(); writes go through actions.setSetting (optimistic). */
 import { useEffect, useState } from "react";
 import {
-  Globe, Languages, Cloud, Cpu, Sparkles, ClipboardPaste, Volume2, ListOrdered, Keyboard,
+  Globe, Languages, ClipboardPaste, Volume2, ListOrdered, Keyboard,
 } from "lucide-react";
 import { useApp } from "../../lib/appContext";
 import { cn } from "../../lib/utils";
@@ -10,6 +10,7 @@ import { SettingRow } from "../primitives/SettingRow";
 import {
   SettingsShell, SettingsSection, SelectField, SettingsLoading, humanize, langLabel,
 } from "./SettingsShell";
+import { formatHotkeyParts } from "../../lib/hotkeyUtils";
 
 /* ---- local controls (single-use here; not shared primitives) ---- */
 
@@ -69,7 +70,7 @@ function Segmented({ value, options, onChange, label }: {
   );
 }
 
-/** Number field that commits on blur / Enter (fewer bridge writes than per-keystroke). */
+/** Compact number field that commits on blur / Enter (no spinner arrows, snugly centered). */
 function NumberField({ value, onCommit, label }: { value: number; onCommit: (n: number) => void; label: string }) {
   const [draft, setDraft] = useState(String(value));
   useEffect(() => setDraft(String(value)), [value]);
@@ -88,30 +89,31 @@ function NumberField({ value, onCommit, label }: { value: number; onCommit: (n: 
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-      className="no-drag h-9 w-24 rounded-field border border-hairline bg-white px-3 text-right text-label text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1"
+      className="no-drag h-8 w-14 rounded-field border border-hairline bg-white px-1 text-center text-label font-semibold text-ink [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1"
     />
   );
 }
 
-/** Editable hotkey box (kbd style); commits on blur / Enter. */
-function HotkeyField({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-  const commit = () => {
-    const v = draft.trim();
-    if (v && v !== value) onCommit(v);
-    else setDraft(value);
-  };
+/** Tactile hotkey button with background blur and distinct clickable feel (fixed to Control Space). */
+function HotkeyButton({ value }: { value: string }) {
+  const parts = formatHotkeyParts(value || "ctrl+space");
+
   return (
-    <input
-      aria-label="Recording hotkey"
-      value={draft}
-      spellCheck={false}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-      className="no-drag h-9 w-44 rounded-field border border-hairline bg-canvas-soft px-3 text-center text-label tracking-wide text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1"
-    />
+    <button
+      type="button"
+      className="no-drag inline-flex h-9 items-center gap-1.5 rounded-pill border border-hairline bg-white/70 backdrop-blur-md px-3.5 transition-colors hover:bg-white/90 active:scale-[0.98] focus-visible:outline-none"
+    >
+      <div className="flex items-center gap-1.5">
+        {parts.map((p, idx) => (
+          <span key={idx} className="flex items-center gap-1.5">
+            <kbd className="rounded-md bg-canvas-soft/90 px-2 py-0.5 font-ui text-[12px] font-semibold text-ink border border-hairline">
+              {p}
+            </kbd>
+            {idx < parts.length - 1 && <span className="text-[11px] font-medium text-ink-tertiary">+</span>}
+          </span>
+        ))}
+      </div>
+    </button>
   );
 }
 
@@ -147,35 +149,6 @@ export function SettingsGeneral() {
             </SettingRow>
           </SettingsSection>
 
-          <SettingsSection title="Transcription">
-            <SettingRow label="Speech provider" description="Where transcription runs." icon={<Cloud />}>
-              <Segmented
-                label="Speech provider"
-                value={settings.stt_provider}
-                options={options.stt_providers}
-                onChange={(v) => actions.setSetting("stt_provider", v)}
-              />
-            </SettingRow>
-            {settings.stt_provider === "groq" && (
-              <SettingRow label="Groq model" description="Cloud model used with the Groq provider." icon={<Cpu />}>
-                <SelectField
-                  aria-label="Groq model"
-                  value={settings.groq_model}
-                  options={options.groq_models.map((m) => ({ value: m, label: humanize(m) }))}
-                  onValueChange={(v) => actions.setSetting("groq_model", v)}
-                />
-              </SettingRow>
-            )}
-            <SettingRow label="Cleanup mode" description="How transcripts are tidied before pasting." icon={<Sparkles />}>
-              <SelectField
-                aria-label="Cleanup mode"
-                value={settings.cleanup_mode}
-                options={options.cleanup_modes.map((m) => ({ value: m, label: humanize(m) }))}
-                onValueChange={(v) => actions.setSetting("cleanup_mode", v)}
-              />
-            </SettingRow>
-          </SettingsSection>
-
           <SettingsSection title="Behavior">
             <SettingRow label="Paste mode" description="How text lands at your cursor." icon={<ClipboardPaste />}>
               <SelectField
@@ -200,7 +173,7 @@ export function SettingsGeneral() {
               />
             </SettingRow>
             <SettingRow label="Hotkey" description="Shortcut to start and stop dictation." icon={<Keyboard />}>
-              <HotkeyField value={settings.hotkey} onCommit={(v) => actions.setSetting("hotkey", v)} />
+              <HotkeyButton value={settings.hotkey} />
             </SettingRow>
           </SettingsSection>
         </>

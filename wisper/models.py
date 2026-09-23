@@ -29,12 +29,12 @@ except Exception:  # pragma: no cover - optional; is_downloaded degrades to Fals
     _try_cache = None
 
 
-# Curated, fast -> accurate. Matches the faster-whisper size ids used with
-# WhisperModel(name); distil-* are the smaller distilled variants.
+# Curated local on-device faster-whisper models (no cloud dependencies).
 AVAILABLE_MODELS: list[str] = [
-    "large-v3-turbo",  # default: best multilingual
-    "small",           # fast CPU fallback
-    "large-v3",        # max accuracy
+    "tiny",
+    "base",
+    "small",
+    "medium",
 ]
 
 

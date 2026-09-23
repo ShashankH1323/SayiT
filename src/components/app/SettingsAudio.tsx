@@ -129,6 +129,9 @@ export function SettingsAudio() {
       </SettingsSection>
 
       <SettingsSection title="Installed models">
+        <p className="pt-2 text-caption text-ink-secondary">
+          Local models run 100% on-device for maximum privacy. Accelerated by NVIDIA CUDA or modern multi-core CPUs.
+        </p>
         <div className="flex flex-wrap gap-1.5 py-3.5">
           {options.local_models.map((m) => {
             const done = models[m] === true;
@@ -137,7 +140,7 @@ export function SettingsAudio() {
               <span
                 key={m}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1 text-caption",
+                  "inline-flex items-center gap-1.5 rounded-pill border px-2.5 py-1 text-caption font-medium",
                   done ? "border-teal/20 bg-teal-soft text-teal-deep" : "border-hairline bg-white text-ink-secondary",
                 )}
               >
@@ -155,13 +158,11 @@ export function SettingsAudio() {
 
       <SettingsSection title="Advanced">
         <ReadOnlyRow
-          label="Compute device"
+          label="Compute acceleration"
           value={humanize(settings.device)}
           icon={<Server />}
-          description="Chosen at launch; GPU is used when available."
+          description="NVIDIA CUDA GPU is automatically utilized when available, falling back to CPU."
         />
-        <ReadOnlyRow label="Compute type" value={settings.compute_type} icon={<Cpu />} />
-        <ReadOnlyRow label="Sample rate" value={`${settings.samplerate.toLocaleString()} Hz`} icon={<Activity />} />
       </SettingsSection>
     </SettingsShell>
   );

@@ -26,14 +26,14 @@ const mockApi = (() => {
   ];
   const st: Settings = {
     hotkey: "ctrl+space", input_device: null,
-    model: "large-v3-turbo", device: "cuda", compute_type: "float16",
+    model: "base", device: "cuda", compute_type: "float16",
     samplerate: 16000, language: "en", output_language: "en",
     cleanup_mode: "light", stt_provider: "groq",
     groq_model: "whisper-large-v3-turbo", sound_effects: true,
     history_size: 50, paste_mode: "auto",
   };
   const mstat: ModelsStatus = {
-    tiny: true, base: true, small: true, medium: false, "large-v3": false, turbo: true,
+    tiny: true, base: true, small: true, medium: false,
   };
   let hist: HistoryItem[] = [
     { ts: "2026-09-23T12:14:02", text: "Ship the frameless window build, then wire the bridge to the Python side." },
@@ -83,7 +83,7 @@ const mockApi = (() => {
         stt_providers: ["groq", "local"],
         groq_models: ["whisper-large-v3-turbo", "whisper-large-v3"],
         languages: ["auto", "en", "es", "fr", "de", "hi", "kn", "te", "ta", "mr", "bn", "gu", "ja", "zh"],
-        local_models: ["tiny", "base", "small", "medium", "large-v3", "turbo"],
+        local_models: ["tiny", "base", "small", "medium"],
       });
     },
     set_setting(key: string, value: unknown): Promise<null> { (st as any)[key] = value; return delay(null); },
@@ -96,6 +96,7 @@ const mockApi = (() => {
     history_clear(): Promise<null> { hist = []; return delay(null); },
     window_minimize(): Promise<null> { console.log("[mock] window_minimize"); return delay(null); },
     window_close(): Promise<null> { console.log("[mock] window_close"); return delay(null); },
+    window_drag(): Promise<boolean> { console.log("[mock] window_drag"); return delay(true); },
   };
 })();
 
@@ -123,6 +124,7 @@ export const api = {
   history_clear: (): Promise<null> => Promise.resolve(backend().history_clear()),
   window_minimize: (): Promise<null> => Promise.resolve(backend().window_minimize()),
   window_close: (): Promise<null> => Promise.resolve(backend().window_close()),
+  window_drag: (): Promise<boolean> => Promise.resolve(backend().window_drag ? backend().window_drag() : false),
 };
 
 /* Resolves when the Python bridge is live; in a plain browser resolves after a

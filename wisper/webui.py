@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+import sys
 
 from wisper import audio, history, models, stt
 from wisper.app import State
@@ -191,6 +192,21 @@ class Api:
         if self._window is not None:
             self._window.destroy()
         return None
+
+    def window_drag(self):
+        """Initiate native Windows frameless window dragging on mousedown."""
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                from webview.platforms.winforms import BrowserView
+                for form in BrowserView.instances.values():
+                    hwnd = int(form.Handle)
+                    ctypes.windll.user32.ReleaseCapture()
+                    ctypes.windll.user32.SendMessageW(hwnd, 0x0112, 0xF012, 0)
+                    return True
+            except Exception as e:
+                log.debug("window_drag failed: %s", e)
+        return False
 
 
 _window = None  # module ref to the live window (single-window app)

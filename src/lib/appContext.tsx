@@ -9,8 +9,8 @@ import type {
   Status, Settings, Options, DeviceInfo, ModelsStatus, HistoryItem,
 } from "./types";
 
-export type Route = "home" | "history" | "settings-general" | "settings-audio" | "about";
-export type OnboardingStep = "splash" | "welcome" | "permissions" | "ready" | null;
+export type Route = "home" | "history" | "transcription" | "settings-general" | "settings-audio" | "about";
+export type OnboardingStep = "splash" | "welcome" | "permissions" | "hotkey" | "ready" | null;
 
 export interface AppActions {
   toggle(): Promise<void>;
@@ -27,6 +27,7 @@ export interface AppActions {
   refreshModels(): Promise<void>;
   minimize(): Promise<void>;
   close(): Promise<void>;
+  windowDrag(): Promise<void>;
   navigate(route: Route): void;
   setOnboarding(step: OnboardingStep): void;
   finishOnboarding(): void;
@@ -137,6 +138,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     async minimize() { try { await api.window_minimize(); } catch (e) { console.error(e); } },
     async close() { try { await api.window_close(); } catch (e) { console.error(e); } },
+    async windowDrag() { try { await api.window_drag(); } catch (e) { console.error(e); } },
     navigate(r) { setRoute(r); },
     setOnboarding(step) { setOnboardingStep(step); },
     finishOnboarding() {

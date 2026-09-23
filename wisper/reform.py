@@ -24,23 +24,7 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 DEFAULT_MODEL = "qwen/qwen3.8-27b"
 FALLBACK_MODELS = ("qwen/qwen3.8-27b", "openai/gpt-oss-20b", "openai/gpt-oss-120b")
 
-_client = None
 _session = None
-
-
-def _get_client():
-    global _client
-    if _client is None:
-        try:
-            import httpx
-            _client = httpx.Client(
-                timeout=10.0,
-                limits=httpx.Limits(max_keepalive_connections=5, keepalive_expiry=60.0),
-                transport=httpx.HTTPTransport(retries=2),
-            )
-        except Exception:
-            _client = False
-    return _client if _client is not False else None
 
 
 def _get_session():
@@ -48,10 +32,22 @@ def _get_session():
     if _session is None:
         try:
             import requests
-            _session = requests.Session()
+            from requests.adapters import HTTPAdapter
+            from urllib3.util.retry import Retry
+
+            s = requests.Session()
+            # Retry connection/reset errors once quickly; never stall on read
+            adapter = HTTPAdapter(
+                max_retries=Retry(total=1, backoff_factor=0.1, status_forcelist=[502, 503, 504]),
+                pool_connections=5,
+                pool_maxsize=10,
+            )
+            s.mount("https://", adapter)
+            _session = s
         except Exception:
             _session = False
     return _session if _session is not False else None
+
 
 PROMPTS = {
     "light": (
@@ -152,34 +148,17 @@ def reform(text: str, lang_out: str = "en", mode: str = "formal", *, timeout: fl
             if is_reasoning:
                 payload["reasoning_effort"] = "low"
 
-            resp = None
-            client = _get_client()
-            if client is not None:
-                try:
-                    resp = client.post(
-                        GROQ_URL,
-                        headers={
-                            "Authorization": f"Bearer {key}",
-                            "Content-Type": "application/json",
-                        },
-                        json=payload,
-                        timeout=timeout,
-                    )
-                except Exception as err:
-                    log.warning("httpx Groq reform error (%s); trying requests", err)
-
-            if resp is None:
-                sess = _get_session()
-                post_fn = sess.post if sess else requests.post
-                resp = post_fn(
-                    GROQ_URL,
-                    headers={
-                        "Authorization": f"Bearer {key}",
-                        "Content-Type": "application/json",
-                    },
-                    json=payload,
-                    timeout=timeout,
-                )
+            sess = _get_session()
+            post_fn = sess.post if sess else requests.post
+            resp = post_fn(
+                GROQ_URL,
+                headers={
+                    "Authorization": f"Bearer {key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=min(12.0, timeout),
+            )
 
             if resp.status_code in (404, 429):
                 last_err = RuntimeError("Groq HTTP %s: %s" % (resp.status_code, resp.text[:200]))

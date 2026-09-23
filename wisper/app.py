@@ -87,20 +87,19 @@ class WisperApp:
                 # and starts over, so the stale error stops showing.
                 self.last_error = ""  # clear a stale error on a fresh attempt
                 self._cancel_requested.clear()
+                if getattr(self.config, "sound_effects", True):
+                    sound.play_start()
                 try:
                     self.audio.start()
                 except Exception as exc:
-                    # Runs on keyboard's hook thread: a raise here crashes that
-                    # daemon and wedges the app. Swallow it into last_error and rest
-                    # in ERROR (the UI surfaces it) so the next toggle can retry.
                     log.exception("[wisper] audio start failed")
                     self.last_error = repr(exc)
                     self.state = State.ERROR
+                    if getattr(self.config, "sound_effects", True):
+                        sound.play_cancel()
                     return
                 self.state = State.RECORDING
                 self.idle_event.clear()
-                if getattr(self.config, "sound_effects", True):
-                    sound.play_start()
             elif self.state is State.RECORDING:
                 # Leave RECORDING synchronously under the lock so a second toggle
                 # lands in a busy state and cannot spawn a duplicate worker.
@@ -133,7 +132,10 @@ class WisperApp:
                 self.state = State.IDLE
                 return
             self.state = State.CLEANING
-            cleaned = self.cleaner.clean(raw, self.config.cleanup_mode, self.config.output_language)
+            cleanup_mode = self.config.cleanup_mode
+            if getattr(self.config, "stt_provider", "groq") == "local" and cleanup_mode in ("light", "rule"):
+                cleanup_mode = "rule"
+            cleaned = self.cleaner.clean(raw, cleanup_mode, self.config.output_language)
             if self._cancel_requested.is_set() or not cleaned:
                 self.state = State.IDLE
                 return

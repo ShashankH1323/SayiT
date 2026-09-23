@@ -1,7 +1,7 @@
 // Onboarding 03 — Permissions & Input Device Setup.
 // Allows dynamic auto-detection & switching of input device,
 // and shows a live audio waveform visualizer of the input device.
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Mic, ArrowLeft, RefreshCw, CheckCircle2 } from "lucide-react";
 import { useApp } from "../../lib/appContext";
 import { cn } from "../../lib/utils";
@@ -10,9 +10,66 @@ import { GlassButton } from "../primitives/GlassButton";
 import { IconOrb } from "../primitives/IconOrb";
 import { PaginationDots } from "../primitives/PaginationDots";
 import { SelectField } from "../app/SettingsShell";
-import { WaveformDots } from "../primitives/MiniBar";
 
 const bareName = (s: string) => s.split("—")[0].trim();
+
+function LiveWaveformVisualizer({ level }: { level: number }) {
+  const [phase, setPhase] = useState(0);
+  const animRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    let currentPhase = 0;
+    let running = true;
+    const animate = () => {
+      if (!running) return;
+      const speed = level > 0.03 ? 0.22 + level * 0.4 : 0.04;
+      currentPhase += speed;
+      setPhase(currentPhase);
+      animRef.current = requestAnimationFrame(animate);
+    };
+    animRef.current = requestAnimationFrame(animate);
+    return () => {
+      running = false;
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+    };
+  }, [level > 0.03]);
+
+  const BARS = 20;
+  const isSpeaking = level > 0.035;
+  const amplified = Math.min(1, Math.max(0, (level - 0.02) * 3.2));
+
+  return (
+    <div className="flex h-10 items-center justify-center gap-1.5 px-2" aria-hidden="true">
+      {Array.from({ length: BARS }).map((_, i) => {
+        const bell = Math.sin(((i + 1) / (BARS + 1)) * Math.PI);
+        const wave = 0.5 + 0.5 * (
+          0.6 * Math.sin(phase + i * 0.5) +
+          0.4 * Math.cos(phase * 1.3 - i * 0.35)
+        );
+
+        const minH = 4;
+        const maxH = 30;
+        const h = isSpeaking
+          ? Math.max(minH, minH + (maxH - minH) * bell * amplified * (0.35 + 0.65 * wave))
+          : Math.max(minH, minH + 2.5 * bell * (0.5 + 0.5 * Math.sin(phase + i * 0.3)));
+
+        return (
+          <span
+            key={i}
+            className={cn(
+              "w-[3.5px] rounded-full transition-all duration-75 ease-out",
+              isSpeaking ? "bg-teal shadow-[0_0_8px_rgba(16,185,129,0.4)]" : "bg-ink/20"
+            )}
+            style={{
+              height: `${Math.round(h)}px`,
+              opacity: isSpeaking ? 0.95 : 0.45,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
 
 export function Permissions() {
   const { status, devices, settings, actions } = useApp();
@@ -48,7 +105,7 @@ export function Permissions() {
   const isSpeaking = status.level > 0.035;
 
   return (
-    <div className="relative flex h-full w-full flex-col overflow-hidden bg-canvas-soft">
+    <div className="relative flex h-full w-full flex-col overflow-hidden bg-canvas-soft select-none">
       <SoftBlobBackground variant="full" />
 
       <main className="flex flex-1 flex-col items-center justify-center gap-5 px-8 text-center duration-500 animate-in fade-in-0 slide-in-from-bottom-2">
@@ -100,8 +157,8 @@ export function Permissions() {
 
         {/* Live Audio Waveform card */}
         <div className="flex flex-col items-center gap-2 rounded-2xl glass px-6 py-3.5 min-w-[280px] max-w-[340px] shadow-soft-sm">
-          <div className="flex items-center justify-center h-8 w-full">
-            <WaveformDots level={status.level} className="gap-1.5" />
+          <div className="flex items-center justify-center h-10 w-full">
+            <LiveWaveformVisualizer level={status.level} />
           </div>
           <div className="flex items-center gap-1.5 text-caption transition-colors duration-200">
             {isSpeaking ? (
@@ -122,7 +179,7 @@ export function Permissions() {
           variant="primary"
           size="lg"
           className="min-w-[200px]"
-          onClick={() => actions.setOnboarding("ready")}
+          onClick={() => actions.setOnboarding("hotkey")}
         >
           Continue
         </GlassButton>

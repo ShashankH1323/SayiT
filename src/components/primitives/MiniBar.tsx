@@ -1,5 +1,6 @@
 import { Mic, X, Loader2, Check } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { formatHotkeyParts } from "../../lib/hotkeyUtils";
 
 export type MiniBarState = "idle" | "listening" | "processing" | "pasted";
 
@@ -128,9 +129,16 @@ export function MiniBar({
           (hotkey ? (
             <span className="flex items-center gap-1.5 text-caption text-ink-tertiary">
               <span>Press</span>
-              <kbd className="hairline rounded-md bg-canvas-soft px-1.5 py-0.5 font-ui text-[11px] font-medium text-ink-secondary">
-                {hotkey}
-              </kbd>
+              <span className="inline-flex items-center gap-1">
+                {formatHotkeyParts(hotkey).map((part, idx, arr) => (
+                  <span key={idx} className="inline-flex items-center gap-1">
+                    <kbd className="hairline rounded-md bg-canvas-soft px-1.5 py-0.5 font-ui text-[11px] font-semibold text-ink-secondary shadow-soft-xs">
+                      {part}
+                    </kbd>
+                    {idx < arr.length - 1 && <span className="text-[10px] text-ink-tertiary">+</span>}
+                  </span>
+                ))}
+              </span>
             </span>
           ) : (
             <DottedIndicator />

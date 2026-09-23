@@ -2,13 +2,14 @@
 // settings.hotkey via useApp(); no bridge version call exists, so the version
 // string is static. Composition: centered brand block, a "what it is" blurb
 // with value bullets, the live hotkey hint, and placeholder footer links.
-import { Shield, Zap, Globe, Github, BookOpen } from "lucide-react";
+import { Shield, Zap, Globe, BookOpen } from "lucide-react";
 import { useApp } from "../../lib/appContext";
 import { SayItMark } from "../primitives/SayItMark";
 import { SayItWordmark } from "../primitives/SayItWordmark";
 import { IconOrb } from "../primitives/IconOrb";
 import { GlassButton } from "../primitives/GlassButton";
 import { SoftBlobBackground } from "../primitives/SoftBlobBackground";
+import { formatHotkeyDisplay } from "../../lib/hotkeyUtils";
 
 // Value props shown as IconOrb bullets. `as const` keeps `tone` a literal so it
 // satisfies IconOrb's tone union.
@@ -61,16 +62,13 @@ export function About() {
           <p className="text-caption text-secondary">
             Press{" "}
             <kbd className="mx-0.5 inline-flex items-center rounded-md border border-hairline bg-white/70 px-2 py-0.5 font-ui text-caption font-medium text-ink shadow-soft-sm">
-              {hotkey}
+              {formatHotkeyDisplay(hotkey)}
             </kbd>{" "}
             anywhere to dictate.
           </p>
 
           {/* Footer links — placeholders, no external nav wired */}
           <div className="flex items-center gap-3">
-            <GlassButton variant="ghost" size="sm" icon={<Github size={16} strokeWidth={2} />}>
-              GitHub
-            </GlassButton>
             <GlassButton variant="ghost" size="sm" icon={<BookOpen size={16} strokeWidth={2} />}>
               Docs
             </GlassButton>

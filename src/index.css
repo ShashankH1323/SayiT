@@ -61,6 +61,7 @@
   html, body, #root {
     height: 100%;
     width: 100%;
+    overflow-x: hidden;
   }
 
   /* Opaque light canvas edge-to-edge; no outer radius so the dark backdrop never shows. */
@@ -98,7 +99,7 @@
     scrollbar-width: thin;
     scrollbar-color: color-mix(in srgb, var(--accent) 32%, transparent) transparent;
   }
-  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar { width: 8px; height: 0px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb {
     background: color-mix(in srgb, var(--accent) 30%, transparent);

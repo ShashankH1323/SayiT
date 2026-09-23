@@ -1,6 +1,7 @@
 // Home.tsx — Screen 05: the main hub. A calm, centered dictation control that
 // morphs with recording state. Renders inside the app shell (the shell owns the
 // window frame, sidebar, status bar and the window-level blob background).
+import { useEffect } from "react";
 import { Mic, AlertTriangle } from "lucide-react";
 import { useApp } from "../../lib/appContext";
 import { cn } from "../../lib/utils";
@@ -8,6 +9,7 @@ import { MiniBar } from "../primitives/MiniBar";
 import { IconOrb } from "../primitives/IconOrb";
 import { StatusPill } from "../primitives/StatusPill";
 import { GlassButton } from "../primitives/GlassButton";
+import { formatHotkeyDisplay, matchesHotkey, parseMouseEvent, normalizeHotkey } from "../../lib/hotkeyUtils";
 
 type Phase = "idle" | "recording" | "processing" | "pasted";
 
@@ -20,6 +22,41 @@ const COPY: Record<Phase, { title: string; sub: string }> = {
 
 export function Home() {
   const { status, settings, pastedToast, actions } = useApp();
+  const hotkey = settings?.hotkey || "ctrl+space";
+
+  // Listen for the hotkey inside the window when focused
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing inside an input or textarea
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+
+      if (matchesHotkey(e, hotkey)) {
+        e.preventDefault();
+        actions.toggle();
+      }
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      const mouseHot = parseMouseEvent(e);
+      if (mouseHot && normalizeHotkey(mouseHot) === normalizeHotkey(hotkey)) {
+        e.preventDefault();
+        actions.toggle();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("auxclick", handleMouseDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("auxclick", handleMouseDown);
+    };
+  }, [hotkey, actions]);
 
   // Error takes over the whole hub with a clear, dismissible card.
   if (status.state === "error") {
@@ -43,7 +80,6 @@ export function Home() {
     );
   }
 
-  const hotkey = settings?.hotkey;
   const listening = status.state === "recording";
   const processing = status.state === "processing";
   // The just-pasted toast shows while the backend has already returned to idle,
@@ -52,7 +88,7 @@ export function Home() {
   const title = COPY[phase].title;
   const sub =
     phase === "idle" && hotkey
-      ? `Press ${hotkey} and speak — your words land at your cursor.`
+      ? `Press ${formatHotkeyDisplay(hotkey)} and speak — your words land at your cursor.`
       : COPY[phase].sub;
 
   return (
