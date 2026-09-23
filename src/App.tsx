@@ -9,6 +9,7 @@ import { SoftBlobBackground } from "./components/primitives/SoftBlobBackground";
 import { SidebarItem } from "./components/primitives/SidebarItem";
 import { SayItWordmark } from "./components/primitives/SayItWordmark";
 import { SayItMark } from "./components/primitives/SayItMark";
+import { MiniBar } from "./components/primitives/MiniBar";
 import { cn } from "./lib/utils";
 
 import { Splash } from "./components/onboarding/Splash";
@@ -25,7 +26,7 @@ import { SettingsAudio } from "./components/app/SettingsAudio";
 import { About } from "./components/app/About";
 
 export default function App() {
-  const { route, onboarding, actions } = useApp();
+  const { route, onboarding, windowMode, status, settings, pastedToast, actions } = useApp();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Onboarding owns the full window with frameless drag support.
@@ -43,6 +44,36 @@ export default function App() {
         {onboarding === "permissions" && <Permissions />}
         {onboarding === "hotkey" && <HotkeyGuide />}
         {onboarding === "ready" && <Ready />}
+      </div>
+    );
+  }
+
+  // Mini Bar collapsed floating mode (always on top, compact pill)
+  if (windowMode === "minibar") {
+    const handleDrag = (e: React.MouseEvent) => {
+      if (e.button === 0 && !(e.target as HTMLElement).closest("button, input, select, a, .no-drag")) {
+        actions.windowDrag();
+      }
+    };
+
+    const minibarState = pastedToast ? "pasted" : status.state === "error" ? "idle" : status.state;
+
+    return (
+      <div
+        onMouseDown={handleDrag}
+        className="drag flex h-full w-full select-none items-center justify-center p-2 bg-transparent overflow-hidden"
+      >
+        <MiniBar
+          state={minibarState as any}
+          level={status.level}
+          text={pastedToast || status.last_text}
+          hotkey={settings?.hotkey}
+          onToggle={actions.toggle}
+          onCancel={actions.cancel}
+          onExpand={() => actions.setWindowMode("full")}
+          isStandalone
+          className="shadow-soft-xl"
+        />
       </div>
     );
   }

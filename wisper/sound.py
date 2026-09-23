@@ -15,6 +15,7 @@ from __future__ import annotations
 import io
 import logging
 from pathlib import Path
+import sys
 import wave
 
 import numpy as np
@@ -26,7 +27,10 @@ try:
 except ImportError:
     winsound = None
 
-_ASSETS_DIR = Path(__file__).resolve().parent / "assets" / "sounds"
+if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+    _ASSETS_DIR = Path(sys._MEIPASS) / "wisper" / "assets" / "sounds"
+else:
+    _ASSETS_DIR = Path(__file__).resolve().parent / "assets" / "sounds"
 
 
 class _SoundCue:
@@ -65,7 +69,25 @@ def _synthesize_thock(freq_start: float, freq_end: float, duration_s: float, pea
     return sig.astype(np.float32), sr
 
 
-def _load_cue(filename: str, fallback_args: tuple) -> _SoundCue:
+def _synthesize_failure(duration_s: float = 0.18, peak: float = 0.92) -> tuple[np.ndarray, int]:
+    """Synthesize a distinct, tactile double-pulse reject haptic cue for failures."""
+    sr = 44100
+    n = int(sr * duration_s)
+    t = np.linspace(0, duration_s, n, endpoint=False)
+    # Double pulse envelopes at t=0 and t=0.08
+    pulse1 = np.exp(-((t - 0.02) / 0.025) ** 2) * (t >= 0)
+    pulse2 = np.exp(-((t - 0.09) / 0.030) ** 2) * (t >= 0.05)
+    # Slightly dissonant descending frequency for the reject cue
+    freq1 = np.linspace(135.0, 55.0, n)
+    freq2 = np.linspace(105.0, 48.0, n)
+    phase1 = 2 * np.pi * np.cumsum(freq1) / sr
+    phase2 = 2 * np.pi * np.cumsum(freq2) / sr
+    sig = pulse1 * (np.sin(phase1) + 0.3 * np.sin(2 * phase1)) + pulse2 * 0.85 * (np.sin(phase2) + 0.35 * np.sin(2 * phase2))
+    sig = (sig / np.max(np.abs(sig) + 1e-6)) * peak
+    return sig.astype(np.float32), sr
+
+
+def _load_cue(filename: str, fallback_fn, fallback_args: tuple) -> _SoundCue:
     wav_path = _ASSETS_DIR / filename
     if wav_path.is_file():
         try:
@@ -91,16 +113,17 @@ def _load_cue(filename: str, fallback_args: tuple) -> _SoundCue:
         except Exception as e:
             log.warning("Failed loading sound cue %s (%s); synthesizing", filename, e)
 
-    sig, sr = _synthesize_thock(*fallback_args)
+    sig, sr = fallback_fn(*fallback_args)
     wav_bytes = _to_wav_bytes(sig, sr)
     return _SoundCue(sig, sr, None, wav_bytes)
 
 
-# Preload and cache all sound cues into memory at module load time (zero latency during hotkeys)
-_SOUND_START = _load_cue("start.wav", (98.0, 52.0, 0.090, 0.96))
-_SOUND_STOP = _load_cue("stop.wav", (125.0, 72.0, 0.075, 0.93))
-_SOUND_CANCEL = _load_cue("cancel.wav", (80.0, 46.0, 0.085, 0.90))
-_SOUND_PASTE = _load_cue("paste.wav", (90.0, 50.0, 0.140, 0.96))
+# Preload and cache all 4 primary tactile sound cues into memory (zero latency, soothing haptic bass)
+_SOUND_START = _load_cue("start.wav", _synthesize_thock, (88.0, 48.0, 0.080, 0.95))
+_SOUND_STOP = _load_cue("stop.wav", _synthesize_thock, (115.0, 64.0, 0.065, 0.92))
+_SOUND_CANCEL = _load_cue("cancel.wav", _synthesize_thock, (75.0, 42.0, 0.075, 0.88))
+_SOUND_PASTE = _load_cue("paste.wav", _synthesize_thock, (92.0, 48.0, 0.125, 0.95))
+_SOUND_FAILURE = _load_cue("failure.wav", _synthesize_failure, (0.18, 0.92))
 
 
 def _play(cue: _SoundCue) -> None:
@@ -124,12 +147,12 @@ def _play(cue: _SoundCue) -> None:
 
 
 def play_start() -> None:
-    """Play deep mechanical switch bottom-out thock when recording begins."""
+    """Play tactile mechanical bottom-out haptic cue when recording begins (activation)."""
     _play(_SOUND_START)
 
 
 def play_stop() -> None:
-    """Play tactile mechanical switch release thock when recording stops."""
+    """Play tactile switch release haptic cue when recording stops (deactivation)."""
     _play(_SOUND_STOP)
 
 
@@ -139,5 +162,10 @@ def play_cancel() -> None:
 
 
 def play_paste() -> None:
-    """Play resonant sub-bass resolution thock when transcription completes and text pastes."""
+    """Play resonant sub-bass resolution haptic chime when transcription pastes (success)."""
     _play(_SOUND_PASTE)
+
+
+def play_failure() -> None:
+    """Play contrasting descending double-bump reject haptic cue when transcription fails (failure)."""
+    _play(_SOUND_FAILURE)

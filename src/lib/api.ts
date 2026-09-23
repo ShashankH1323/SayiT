@@ -96,6 +96,8 @@ const mockApi = (() => {
     history_clear(): Promise<null> { hist = []; return delay(null); },
     window_minimize(): Promise<null> { console.log("[mock] window_minimize"); return delay(null); },
     window_close(): Promise<null> { console.log("[mock] window_close"); return delay(null); },
+    window_quit(): Promise<null> { console.log("[mock] window_quit"); return delay(null); },
+    set_window_mode(mode: "full" | "minibar"): Promise<null> { console.log("[mock] set_window_mode", mode); return delay(null); },
     window_drag(): Promise<boolean> { console.log("[mock] window_drag"); return delay(true); },
   };
 })();
@@ -124,6 +126,8 @@ export const api = {
   history_clear: (): Promise<null> => Promise.resolve(backend().history_clear()),
   window_minimize: (): Promise<null> => Promise.resolve(backend().window_minimize()),
   window_close: (): Promise<null> => Promise.resolve(backend().window_close()),
+  window_quit: (): Promise<null> => Promise.resolve(backend().window_quit ? backend().window_quit() : backend().window_close()),
+  set_window_mode: (mode: "full" | "minibar"): Promise<null> => Promise.resolve(backend().set_window_mode ? backend().set_window_mode(mode) : null),
   window_drag: (): Promise<boolean> => Promise.resolve(backend().window_drag ? backend().window_drag() : false),
 };
 

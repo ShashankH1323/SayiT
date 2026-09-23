@@ -32,9 +32,11 @@ function ReadOnlyRow({ label, value, icon, description }: {
 }
 
 export function SettingsAudio() {
-  const { settings, options, devices, models, actions } = useApp();
+  const { status, settings, options, devices, models, actions } = useApp();
   const [downloading, setDownloading] = useState<string | null>(null);
   const [refreshingDevices, setRefreshingDevices] = useState(false);
+  const [testingMic, setTestingMic] = useState(false);
+  const [noiseSuppression, setNoiseSuppression] = useState(true);
 
   if (!settings || !options) {
     return <SettingsShell><SettingsLoading /></SettingsShell>;
@@ -58,7 +60,7 @@ export function SettingsAudio() {
 
   return (
     <SettingsShell>
-      <SettingsSection title="Input">
+      <SettingsSection title="Audio Configuration">
         <SettingRow label="Microphone" description="Input device used for dictation." icon={<Mic />}>
           <div className="flex items-center gap-2">
             <SelectField
@@ -79,6 +81,87 @@ export function SettingsAudio() {
               }}
             />
           </div>
+        </SettingRow>
+
+        {/* Input sensitivity meter matching Card 13 */}
+        <SettingRow
+          label="Input sensitivity"
+          description="Adjust threshold and view live audio response level."
+          icon={<Activity />}
+        >
+          <div className="flex flex-col gap-2 min-w-[200px]">
+            <div className="flex items-center gap-1 h-5 px-1 py-0.5 rounded-md bg-canvas-soft border border-hairline">
+              {Array.from({ length: 24 }).map((_, i) => {
+                const threshold = (i + 1) / 24;
+                const active = (status.level || 0) >= threshold * 0.7;
+                return (
+                  <span
+                    key={i}
+                    className={cn(
+                      "w-1.5 h-3 rounded-full transition-all duration-75",
+                      active ? (i > 18 ? "bg-accent" : "bg-teal") : "bg-ink/15"
+                    )}
+                  />
+                );
+              })}
+            </div>
+            <input
+              type="range"
+              min={10}
+              max={100}
+              defaultValue={70}
+              className="h-1.5 w-full accent-accent cursor-pointer"
+            />
+          </div>
+        </SettingRow>
+
+        {/* Noise suppression toggle matching Card 13 */}
+        <SettingRow
+          label="Noise suppression"
+          description="Reduce ambient room noise and keyboard clicks for cleaner transcriptions."
+          icon={<Cpu />}
+        >
+          <button
+            type="button"
+            role="switch"
+            aria-checked={noiseSuppression}
+            onClick={() => setNoiseSuppression(!noiseSuppression)}
+            className={cn(
+              "no-drag relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-pill border-2 border-transparent transition-colors duration-200",
+              noiseSuppression ? "bg-accent" : "bg-ink/15"
+            )}
+          >
+            <span
+              className={cn(
+                "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-soft-sm transition duration-200",
+                noiseSuppression ? "translate-x-5" : "translate-x-0"
+              )}
+            />
+          </button>
+        </SettingRow>
+
+        {/* Test Microphone action button matching Card 13 */}
+        <SettingRow
+          label="Test microphone"
+          description={testingMic ? "Listening... Speak to test level bars above." : "Check if your microphone captures audio clearly."}
+          icon={<Mic />}
+        >
+          <GlassButton
+            variant={testingMic ? "primary" : "secondary"}
+            size="sm"
+            icon={<Mic className={cn("h-4 w-4", testingMic && "animate-pulse text-white")} />}
+            onClick={async () => {
+              if (testingMic) {
+                setTestingMic(false);
+                await actions.stopPreview();
+              } else {
+                setTestingMic(true);
+                await actions.startPreview(settings.input_device || undefined);
+              }
+            }}
+          >
+            {testingMic ? "Stop test" : "Start test"}
+          </GlassButton>
         </SettingRow>
       </SettingsSection>
 

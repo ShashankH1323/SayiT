@@ -1,16 +1,19 @@
-/* appContext.tsx — the single place that talks to the Python bridge.
- * Screens stay presentational: they read state + call actions from useApp().
- * Pull-based: poll get_status() every 200ms (api.subscribeStatus) and call
- * bridge methods on user action. */
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { api, subscribeStatus, bridgeReady } from "./api";
+import {
+  playHapticActivation,
+  playHapticDeactivation,
+  playHapticSuccess,
+  playHapticFailure,
+} from "./hapticAudio";
 import type {
   Status, Settings, Options, DeviceInfo, ModelsStatus, HistoryItem,
 } from "./types";
 
 export type Route = "home" | "history" | "transcription" | "settings-general" | "settings-audio" | "about";
 export type OnboardingStep = "splash" | "welcome" | "permissions" | "hotkey" | "ready" | null;
+export type WindowMode = "full" | "minibar";
 
 export interface AppActions {
   toggle(): Promise<void>;
@@ -27,6 +30,8 @@ export interface AppActions {
   refreshModels(): Promise<void>;
   minimize(): Promise<void>;
   close(): Promise<void>;
+  quit(): Promise<void>;
+  setWindowMode(mode: WindowMode): Promise<void>;
   windowDrag(): Promise<void>;
   navigate(route: Route): void;
   setOnboarding(step: OnboardingStep): void;
@@ -41,6 +46,7 @@ export interface AppContextValue {
   models: ModelsStatus;
   route: Route;
   onboarding: OnboardingStep;
+  windowMode: WindowMode;
   pastedToast: string | null;
   actions: AppActions;
 }
@@ -60,20 +66,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [models, setModels] = useState<ModelsStatus>({});
   const [route, setRoute] = useState<Route>("home");
   const [onboarding, setOnboardingStep] = useState<OnboardingStep>("splash");
+  const [windowMode, setWindowModeState] = useState<WindowMode>("full");
   const [pastedToast, setPastedToast] = useState<string | null>(null);
 
   const prevStatus = useRef<Status | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // Splash always shows briefly, then first-run onboarding or straight home.
+  // Splash always shows briefly, then first-run onboarding or straight to minibar state.
   useEffect(() => {
     let onboarded = false;
     try { onboarded = localStorage.getItem(ONBOARD_KEY) === "1"; } catch {}
-    const t = setTimeout(() => setOnboardingStep(onboarded ? null : "welcome"), SPLASH_MS);
+    const t = setTimeout(() => {
+      if (onboarded) {
+        setOnboardingStep(null);
+        setWindowModeState("minibar");
+        api.set_window_mode("minibar").catch(() => {});
+      } else {
+        setOnboardingStep("welcome");
+      }
+    }, SPLASH_MS);
     return () => clearTimeout(t);
   }, []);
 
-  // Initial fetch + 200ms status poll, gated on the real bridge being live.
+  // Initial fetch + status poll with haptic earcons and auto error popup expansion
   useEffect(() => {
     let alive = true;
     let unsub = () => {};
@@ -90,8 +105,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
       unsub = subscribeStatus((next) => {
         const prev = prevStatus.current;
         setStatus(next);
+
+        // Haptic feedback cues (activation, deactivation, success, failure)
+        const soundEnabled = settings?.sound_effects !== false;
+        if (prev && soundEnabled) {
+          if (prev.state === "idle" && next.state === "recording") {
+            playHapticActivation();
+          } else if (prev.state === "recording" && next.state === "processing") {
+            playHapticDeactivation();
+          } else if (next.state === "error" && prev.state !== "error") {
+            playHapticFailure();
+          }
+        }
+
+        // Auto-expand minibar to large popup if error occurs
+        if (next.state === "error") {
+          setWindowModeState((currentMode) => {
+            if (currentMode === "minibar") {
+              api.set_window_mode("full").catch(() => {});
+              return "full";
+            }
+            return currentMode;
+          });
+        }
+
+        // Paste success toast
         if (prev && prev.state === "processing" && next.state === "idle"
             && next.last_text && next.last_text !== prev.last_text) {
+          if (soundEnabled) playHapticSuccess();
           setPastedToast(next.last_text);
           if (toastTimer.current) clearTimeout(toastTimer.current);
           toastTimer.current = setTimeout(() => setPastedToast(null), TOAST_MS);
@@ -100,7 +141,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }, 60);
     }).catch(() => {});
     return () => { alive = false; unsub(); if (toastTimer.current) clearTimeout(toastTimer.current); };
-  }, []);
+  }, [settings?.sound_effects]);
 
   const actions = useMemo<AppActions>(() => ({
     async toggle() { try { await api.toggle(); } catch (e) { console.error(e); } },
@@ -137,7 +178,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try { setModels(await api.models_status()); } catch (e) { console.error(e); }
     },
     async minimize() { try { await api.window_minimize(); } catch (e) { console.error(e); } },
-    async close() { try { await api.window_close(); } catch (e) { console.error(e); } },
+    async close() {
+      // Collapses into floating Mini Bar state as requested
+      setWindowModeState("minibar");
+      try { await api.set_window_mode("minibar"); } catch (e) { console.error(e); }
+    },
+    async quit() {
+      try { await api.window_quit(); } catch (e) { console.error(e); }
+    },
+    async setWindowMode(mode: WindowMode) {
+      setWindowModeState(mode);
+      try { await api.set_window_mode(mode); } catch (e) { console.error(e); }
+    },
     async windowDrag() { try { await api.window_drag(); } catch (e) { console.error(e); } },
     navigate(r) { setRoute(r); },
     setOnboarding(step) { setOnboardingStep(step); },
@@ -145,11 +197,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try { localStorage.setItem(ONBOARD_KEY, "1"); } catch {}
       setOnboardingStep(null);
       setRoute("home");
+      setWindowModeState("minibar");
+      api.set_window_mode("minibar").catch(() => {});
     },
   }), []);
+
   const value = useMemo<AppContextValue>(() => ({
-    status, settings, options, devices, models, route, onboarding, pastedToast, actions,
-  }), [status, settings, options, devices, models, route, onboarding, pastedToast, actions]);
+    status, settings, options, devices, models, route, onboarding, windowMode, pastedToast, actions,
+  }), [status, settings, options, devices, models, route, onboarding, windowMode, pastedToast, actions]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

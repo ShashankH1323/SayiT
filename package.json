@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:app": "python scripts/build_executable.py",
+    "build:exe": ".venv\\Scripts\\python.exe scripts/build_executable.py"
   },
   "dependencies": {
     "react": "^18.3.1",

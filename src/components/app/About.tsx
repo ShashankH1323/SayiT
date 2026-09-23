@@ -1,77 +1,126 @@
-// Screen 14 — About. Renders inside the app shell. Consumer only: reads
-// settings.hotkey via useApp(); no bridge version call exists, so the version
-// string is static. Composition: centered brand block, a "what it is" blurb
-// with value bullets, the live hotkey hint, and placeholder footer links.
-import { Shield, Zap, Globe, BookOpen } from "lucide-react";
+import { useState } from "react";
+import { Shield, RefreshCw, MessageSquare, ChevronRight, Check } from "lucide-react";
 import { useApp } from "../../lib/appContext";
 import { SayItMark } from "../primitives/SayItMark";
-import { SayItWordmark } from "../primitives/SayItWordmark";
-import { IconOrb } from "../primitives/IconOrb";
-import { GlassButton } from "../primitives/GlassButton";
 import { SoftBlobBackground } from "../primitives/SoftBlobBackground";
 import { formatHotkeyDisplay } from "../../lib/hotkeyUtils";
-
-// Value props shown as IconOrb bullets. `as const` keeps `tone` a literal so it
-// satisfies IconOrb's tone union.
-const VALUES = [
-  { Icon: Shield, tone: "accent", title: "Private & local", body: "Audio and transcripts never leave your device." },
-  { Icon: Zap, tone: "teal", title: "Fast", body: "Real-time dictation, transcribed in seconds." },
-  { Icon: Globe, tone: "accent", title: "Multilingual", body: "Speak many languages and paste anywhere." },
-] as const;
+import thinkItSlogan from "../../assets/handwritten_think_it_say_it_done.png";
 
 export function About() {
   const { settings } = useApp();
-  const hotkey = settings?.hotkey ?? "Ctrl + Win"; // settings null until bridge is live
+  const hotkey = settings?.hotkey ?? "ctrl+space";
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null);
+
+  const handleCheckUpdate = () => {
+    setUpdateStatus("checking");
+    setTimeout(() => {
+      setUpdateStatus("latest");
+      setTimeout(() => setUpdateStatus(null), 3000);
+    }, 1200);
+  };
 
   return (
-    // isolate: give SoftBlobBackground's -z-10 a local stacking context so the
-    // blobs sit above this section's canvas fill, not behind it.
-    <section className="relative isolate flex h-full flex-col overflow-hidden bg-canvas-soft">
+    <section className="relative isolate flex h-full flex-col overflow-hidden bg-canvas-soft select-none">
       <SoftBlobBackground variant="subtle" />
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto flex min-h-full max-w-md flex-col items-center justify-center gap-7 px-8 py-10 text-center">
-          {/* Brand block */}
+      {/* Page Header */}
+      <header className="shrink-0 px-6 pt-5">
+        <h1 className="font-display text-title font-bold text-ink">About</h1>
+      </header>
+
+      <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="mx-auto flex min-h-full max-w-md flex-col items-center justify-center gap-6 text-center">
+          {/* Brand hero block matching Card 14 */}
           <div className="flex flex-col items-center gap-3">
-            <SayItMark size={76} />
-            <SayItWordmark size="lg" />
-            <p className="text-caption text-ink-tertiary">Say It · v1.0</p>
-            <p className="font-hand text-2xl leading-none text-accent">Fast · Private · Always with you</p>
+            <SayItMark size={84} className="drop-shadow-lg" />
+            <div className="space-y-0.5">
+              <h2 className="font-display text-2xl font-bold tracking-tight text-ink">Say It</h2>
+              <p className="text-caption font-medium text-ink-tertiary">Version 1.0.0</p>
+            </div>
           </div>
 
-          {/* What it is + value bullets */}
-          <div className="glass w-full rounded-card p-5 text-left">
-            <p className="text-body text-secondary">
-              Say It turns your voice into text right on your machine — local, private, real-time
-              dictation you can paste into any app.
-            </p>
-            <ul className="mt-4 flex flex-col gap-3">
-              {VALUES.map((v) => (
-                <li key={v.title} className="flex items-center gap-3">
-                  <IconOrb icon={<v.Icon size={18} strokeWidth={2} />} tone={v.tone} size={40} />
-                  <div>
-                    <p className="text-label font-semibold text-ink">{v.title}</p>
-                    <p className="text-caption text-ink-tertiary">{v.body}</p>
+          {/* Action options card list matching Card 14 */}
+          <div className="w-full space-y-2 text-left">
+            <button
+              type="button"
+              onClick={handleCheckUpdate}
+              className="flex w-full items-center justify-between rounded-card border border-hairline bg-white/80 backdrop-blur-md p-3.5 shadow-soft-xs hover:border-accent/30 hover:bg-white hover:shadow-soft-sm transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <div className="grid h-8 w-8 place-items-center rounded-field bg-accent-soft text-accent">
+                  <RefreshCw className={updateStatus === "checking" ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+                </div>
+                <div>
+                  <div className="text-label font-medium text-ink">Check for updates</div>
+                  <div className="text-caption text-ink-tertiary">
+                    {updateStatus === "checking"
+                      ? "Checking release channel…"
+                      : updateStatus === "latest"
+                        ? "Say It is up to date"
+                        : "Current version: 1.0.0"}
                   </div>
-                </li>
-              ))}
-            </ul>
+                </div>
+              </div>
+              {updateStatus === "latest" ? (
+                <span className="inline-flex items-center gap-1 text-caption font-semibold text-teal-deep">
+                  <Check className="h-4 w-4 text-teal" /> Up to date
+                </span>
+              ) : (
+                <ChevronRight className="h-4 w-4 text-ink-tertiary" />
+              )}
+            </button>
+
+            <a
+              href="mailto:support@sayit.app?subject=Say%20It%20Feedback"
+              target="_blank"
+              rel="noreferrer"
+              className="flex w-full items-center justify-between rounded-card border border-hairline bg-white/80 backdrop-blur-md p-3.5 shadow-soft-xs hover:border-accent/30 hover:bg-white hover:shadow-soft-sm transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <div className="grid h-8 w-8 place-items-center rounded-field bg-teal-soft text-teal-deep">
+                  <MessageSquare className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-label font-medium text-ink">Send feedback</div>
+                  <div className="text-caption text-ink-tertiary">Share thoughts or feature requests</div>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-ink-tertiary" />
+            </a>
+
+            <div className="flex w-full items-center justify-between rounded-card border border-hairline bg-white/80 backdrop-blur-md p-3.5 shadow-soft-xs">
+              <div className="flex items-center gap-3">
+                <div className="grid h-8 w-8 place-items-center rounded-field bg-ink/5 text-ink-secondary">
+                  <Shield className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-label font-medium text-ink">Privacy policy</div>
+                  <div className="text-caption text-ink-tertiary">100% on-device private audio processing</div>
+                </div>
+              </div>
+              <span className="text-[11px] font-semibold text-teal-deep bg-teal-soft px-2 py-0.5 rounded-pill">
+                Local first
+              </span>
+            </div>
           </div>
 
           {/* Live hotkey hint */}
-          <p className="text-caption text-secondary">
+          <p className="text-caption text-ink-tertiary">
             Press{" "}
-            <kbd className="mx-0.5 inline-flex items-center rounded-md border border-hairline bg-white/70 px-2 py-0.5 font-ui text-caption font-medium text-ink shadow-soft-sm">
+            <kbd className="mx-1 inline-flex items-center rounded-md border border-hairline bg-white px-2 py-0.5 font-ui text-caption font-semibold text-ink shadow-soft-xs">
               {formatHotkeyDisplay(hotkey)}
             </kbd>{" "}
             anywhere to dictate.
           </p>
 
-          {/* Footer links — placeholders, no external nav wired */}
-          <div className="flex items-center gap-3">
-            <GlassButton variant="ghost" size="sm" icon={<BookOpen size={16} strokeWidth={2} />}>
-              Docs
-            </GlassButton>
+          {/* Slogan handwritten flourish from Final Ui */}
+          <div className="pt-2 opacity-85 select-none pointer-events-none">
+            <img
+              src={thinkItSlogan}
+              alt="Think it. Say it. Done."
+              className="h-12 w-auto object-contain"
+              draggable={false}
+            />
           </div>
         </div>
       </div>

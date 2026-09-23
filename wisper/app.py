@@ -96,7 +96,7 @@ class WisperApp:
                     self.last_error = repr(exc)
                     self.state = State.ERROR
                     if getattr(self.config, "sound_effects", True):
-                        sound.play_cancel()
+                        sound.play_failure()
                     return
                 self.state = State.RECORDING
                 self.idle_event.clear()
@@ -155,6 +155,8 @@ class WisperApp:
             log.exception("[wisper] processing failed; utterance discarded")
             self.last_error = repr(exc)
             self.state = State.ERROR
+            if getattr(self.config, "sound_effects", True):
+                sound.play_failure()
         finally:
             self._cancel_requested.clear()
             self.idle_event.set()

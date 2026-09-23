@@ -119,6 +119,26 @@ function HotkeyButton({ value }: { value: string }) {
 
 export function SettingsGeneral() {
   const { settings, options, actions } = useApp();
+  const [launchAtLogin, setLaunchAtLogin] = useState(() => {
+    try { return localStorage.getItem("say-it-launch-login") === "1"; } catch { return false; }
+  });
+  const [showMiniBar, setShowMiniBar] = useState(() => {
+    try { return localStorage.getItem("say-it-show-minibar") !== "0"; } catch { return true; }
+  });
+
+  const toggleLaunchAtLogin = () => {
+    const next = !launchAtLogin;
+    setLaunchAtLogin(next);
+    try { localStorage.setItem("say-it-launch-login", next ? "1" : "0"); } catch {}
+  };
+
+  const toggleShowMiniBar = () => {
+    const next = !showMiniBar;
+    setShowMiniBar(next);
+    try { localStorage.setItem("say-it-show-minibar", next ? "1" : "0"); } catch {}
+  };
+
+  const isAutoPaste = settings?.paste_mode !== "off";
 
   return (
     <SettingsShell>
@@ -126,6 +146,61 @@ export function SettingsGeneral() {
         <SettingsLoading />
       ) : (
         <>
+          <SettingsSection title="General Preferences">
+            <SettingRow
+              label="Launch at login"
+              description="Start Say It automatically when Windows starts."
+              icon={<Globe />}
+            >
+              <Toggle
+                label="Launch at login"
+                checked={launchAtLogin}
+                onChange={toggleLaunchAtLogin}
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="Show mini bar"
+              description="Float a compact recording pill when idle or minimized."
+              icon={<ClipboardPaste />}
+            >
+              <Toggle
+                label="Show mini bar"
+                checked={showMiniBar}
+                onChange={toggleShowMiniBar}
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="Auto paste"
+              description="Automatically paste transcriptions at your cursor."
+              icon={<ClipboardPaste />}
+            >
+              <Toggle
+                label="Auto paste"
+                checked={isAutoPaste}
+                onChange={() => actions.setSetting("paste_mode", isAutoPaste ? "off" : "auto")}
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="Hotkey"
+              description="Shortcut to start and stop dictation."
+              icon={<Keyboard />}
+            >
+              <div className="flex items-center gap-2">
+                <HotkeyButton value={settings.hotkey} />
+                <button
+                  type="button"
+                  onClick={() => actions.setOnboarding("hotkey")}
+                  className="rounded-field border border-hairline bg-white px-2.5 py-1 text-caption font-semibold text-accent hover:bg-accent-soft transition-colors"
+                >
+                  Change
+                </button>
+              </div>
+            </SettingRow>
+          </SettingsSection>
+
           <SettingsSection title="Language">
             <SettingRow label="Spoken language" description="The language you dictate in." icon={<Globe />}>
               <SelectField
@@ -149,16 +224,8 @@ export function SettingsGeneral() {
             </SettingRow>
           </SettingsSection>
 
-          <SettingsSection title="Behavior">
-            <SettingRow label="Paste mode" description="How text lands at your cursor." icon={<ClipboardPaste />}>
-              <SelectField
-                aria-label="Paste mode"
-                value={settings.paste_mode}
-                options={options.paste_modes.map((m) => ({ value: m, label: humanize(m) }))}
-                onValueChange={(v) => actions.setSetting("paste_mode", v)}
-              />
-            </SettingRow>
-            <SettingRow label="Sound effects" description="Play a cue when recording starts and stops." icon={<Volume2 />}>
+          <SettingsSection title="Audio Feedback & History">
+            <SettingRow label="Sound effects (Haptics)" description="Play tactile haptic audio cues when recording and pasting." icon={<Volume2 />}>
               <Toggle
                 label="Sound effects"
                 checked={settings.sound_effects}
@@ -171,9 +238,6 @@ export function SettingsGeneral() {
                 value={settings.history_size}
                 onCommit={(n) => actions.setSetting("history_size", n)}
               />
-            </SettingRow>
-            <SettingRow label="Hotkey" description="Shortcut to start and stop dictation." icon={<Keyboard />}>
-              <HotkeyButton value={settings.hotkey} />
             </SettingRow>
           </SettingsSection>
         </>

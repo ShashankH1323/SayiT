@@ -22,11 +22,13 @@ log = logging.getLogger("wisper")
 
 # Absolute path to the frontend entry (built by a separate agent). Referenced
 # lazily; it need not exist at import time.
-_INDEX = Path(__file__).resolve().parent / "web" / "index.html"
+if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+    _ROOT = Path(sys._MEIPASS)
+else:
+    _ROOT = Path(__file__).resolve().parent.parent
 
-# Preferred entry: the built React app at <repo root>/dist/index.html. Falls
-# back to _INDEX (vanilla web/index.html) when the build is absent.
-_BUILT = Path(__file__).resolve().parent.parent / "dist" / "index.html"
+_INDEX = Path(__file__).resolve().parent / "web" / "index.html"
+_BUILT = _ROOT / "dist" / "index.html"
 
 # Real State enum member -> one of the 4 states the frontend understands.
 # recording = capturing; processing = transcribe/clean/paste; idle = ready or
@@ -193,6 +195,33 @@ class Api:
             self._window.destroy()
         return None
 
+    def window_quit(self):
+        """Completely exit the application."""
+        if self._window is not None:
+            self._window.destroy()
+        return None
+
+    def set_window_mode(self, mode: str):
+        """Switch between 'full' (720x720) and 'minibar' (380x80).
+        In minibar mode, window stays on_top and becomes a compact floating bar."""
+        if self._window is not None:
+            try:
+                if mode == "minibar":
+                    self._window.resize(380, 80)
+                    try:
+                        self._window.on_top = True
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        self._window.on_top = False
+                    except Exception:
+                        pass
+                    self._window.resize(720, 720)
+            except Exception as e:
+                log.warning("[wisper] set_window_mode failed: %s", e)
+        return None
+
     def window_drag(self):
         """Initiate native Windows frameless window dragging on mousedown."""
         if sys.platform == "win32":
@@ -228,7 +257,7 @@ def launch(app):
         js_api=api,
         width=720,
         height=720,
-        min_size=(600, 600),
+        min_size=(240, 60),
         frameless=True,
         easy_drag=False,
         background_color="#FAFAFC",
