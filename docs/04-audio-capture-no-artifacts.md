@@ -7,7 +7,7 @@
 ## The requirement
 
 Capture the microphone for speech-to-text **without disturbing any other audio on the
-system**. The bug that plagues open-source dictation tools and that Wisper must NOT have:
+system**. The bug that plagues open-source dictation tools and that Say It must NOT have:
 
 - Background music/Spotify/YouTube volume **drops** the instant recording starts.
 - A game or call's audio **cuts out** or gets "thin"/artifacted.
@@ -53,7 +53,7 @@ The trigger is the **device role / stream category**, not "recording" itself:
      never `_Communications`. This is the only way to be 100% certain of the category; the
      PortAudio path is simpler and usually sufficient.
 2. **Neutralize the OS ducking policy** so even if something else opens a comms stream,
-   Wisper's presence doesn't cause ducking, and Wisper's own capture never does:
+   Say It's presence doesn't cause ducking, and Say It's own capture never does:
    - Guide the user (Settings → System → Sound → *More sound settings* →
      **Communications** tab → **"Do nothing"**), and/or
    - Set it programmatically via the registry/Core Audio ducking API on first run, with
@@ -66,7 +66,7 @@ The trigger is the **device role / stream category**, not "recording" itself:
 
 ### (b) Shared vs exclusive mode
 
-- **Shared mode:** the audio engine mixes Wisper's capture with everyone else. Multiple
+- **Shared mode:** the audio engine mixes Say It's capture with everyone else. Multiple
   apps use the device simultaneously. **This is what we want.**
 - **Exclusive mode:** the app takes sole ownership of the endpoint at a specific format;
   other apps are pushed off it. Lower latency, but it's antisocial and causes the
@@ -122,7 +122,7 @@ category explicitly.
 ## VAD (Silero) integration
 
 - Run **Silero VAD** on the 16 kHz stream to detect speech/silence.
-- Uses in Wisper:
+- Uses in Say It:
   1. Trim leading/trailing silence before handing audio to STT (faster, cleaner).
   2. Segment for the optional background-incremental transcription path (see
      [[01-architecture-and-pipeline]]).
@@ -155,7 +155,7 @@ Rules:
 
 Shared-mode capture means Discord/Zoom/OBS can read the same mic at the same time. We do
 **not** grab exclusive access and do **not** change the default device. If the user records
-in another app while Wisper is idle, nothing changes. When Wisper records, it just adds one
+in another app while Say It is idle, nothing changes. When Say It records, it just adds one
 more shared reader.
 
 ---
@@ -172,10 +172,10 @@ more shared reader.
 
 ## Verification / test plan (proves the bug is gone)
 
-1. **Ducking test:** Play music (Spotify/browser) at a fixed volume. Start Wisper
+1. **Ducking test:** Play music (Spotify/browser) at a fixed volume. Start Say It
    recording. **Assert:** music volume does **not** change (measure the render peak meter
    before/after, or just listen). Stop recording — still unchanged.
-2. **Coexistence test:** Join a call / run OBS capturing the same mic; start Wisper.
+2. **Coexistence test:** Join a call / run OBS capturing the same mic; start Say It.
    **Assert:** the other app keeps receiving mic audio; no device-lost error.
 3. **Artifact test:** Record a known phrase over background music; **assert** no dropouts,
    clicks, or warble in the captured 16 kHz wav (visual + listen).

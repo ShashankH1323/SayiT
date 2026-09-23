@@ -10,3 +10,6 @@ models/
 *.log
 .env
 *.env
+
+# dependencies
+node_modules/

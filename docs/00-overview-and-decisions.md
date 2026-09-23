@@ -1,6 +1,6 @@
-# 00 — Wisper: Overview & Locked Decisions
+# 00 — Say It: Overview & Locked Decisions
 
-**Wisper** = a fully local, free, open-source alternative to Wispr Flow. Press a global
+**Say It** = a fully local, free, open-source alternative to Wispr Flow. Press a global
 hotkey → speak → press again → the full, cleaned transcript is pasted at once wherever your
 cursor is (VS Code, Notepad, browser, Claude Code terminal, any field). No cloud, no
 subscription, no telemetry. Primary target: **Windows 11 + NVIDIA CUDA**. Multilingual

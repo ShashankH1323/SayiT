@@ -39,7 +39,7 @@ class WisperUI:
     def __init__(self, app):
         self.app = app
         self.root = tk.Tk()
-        self.root.title("Wisper")
+        self.root.title("Say It")
         self.root.minsize(400, 560)
         self.root.geometry("440x660")
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)

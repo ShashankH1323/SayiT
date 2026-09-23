@@ -1,6 +1,6 @@
 # 03 — Multilingual Support & Translation
 
-Scope: how Wisper handles English + Hindi + Kannada + other Indic languages, and how it lets the user pick an **output language independent of the spoken language** — all fully local, free/open models, on Windows 11 + NVIDIA CUDA.
+Scope: how Say It handles English + Hindi + Kannada + other Indic languages, and how it lets the user pick an **output language independent of the spoken language** — all fully local, free/open models, on Windows 11 + NVIDIA CUDA.
 
 > WER/quality numbers below are directional. Where marked **unverified (2026)** they are from memory, not re-confirmed against a live benchmark. Treat them as "which bucket" (good / decent / weak), not exact scores.
 
@@ -93,7 +93,7 @@ These exist specifically because vanilla Whisper is weak on many Indic languages
 
 ## 4. Source-vs-output-language design — the three mechanisms
 
-Wisper picks one of three paths per dictation based on (source language, output language):
+Say It picks one of three paths per dictation based on (source language, output language):
 
 **Mechanism 1 — Transcribe in source language (ASR only).**
 `audio → ASR(transcribe, lang=source) → text(source)`

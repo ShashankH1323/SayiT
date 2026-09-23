@@ -1,6 +1,6 @@
-# Wisper — Research & Design Docs
+# Say It — Research & Design Docs
 
-**Wisper** is a fully local, free, open-source alternative to Wispr Flow: press a global
+**Say It** is a fully local, free, open-source alternative to Wispr Flow: press a global
 hotkey → speak → press again → the full, cleaned transcript pastes at once wherever your
 cursor is. No cloud, no subscription, no telemetry. Windows 11 + NVIDIA CUDA first;
 multilingual (English + Hindi + Kannada + Indic) with a choosable output language.

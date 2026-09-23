@@ -13,6 +13,11 @@ numpy>=2,<3
 keyboard==0.13.5
 pyperclip==1.11.0
 
+# native UI (frameless Edge WebView2 window; no server, offline). Windows uses
+# the built-in WebView2 runtime, no extra GUI toolkit needed.
+# ponytail: pinned to the 5.x line, not an exact patch — any 5.x is API-compatible here.
+pywebview==5.*
+
 # CUDA math libs for GPU STT (ct2 loads cuBLAS + cuDNN 9 at runtime)
 nvidia-cublas-cu12>=12.3,<13; platform_system == "Windows"
 nvidia-cudnn-cu12>=9.1,<10; platform_system == "Windows"

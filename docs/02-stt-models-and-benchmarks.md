@@ -1,6 +1,6 @@
 # 02 — STT Models & Benchmarks
 
-> Scope: pick the speech-to-text **engine + model + precision** for Wisper — a fully local, free Wispr Flow clone. Hotkey starts/stops recording; the whole utterance is transcribed after stop, cleaned, and pasted at once. Target: Windows 11 + NVIDIA CUDA GPU. No cloud.
+> Scope: pick the speech-to-text **engine + model + precision** for Say It — a fully local, free Wispr Flow clone. Hotkey starts/stops recording; the whole utterance is transcribed after stop, cleaned, and pasted at once. Target: Windows 11 + NVIDIA CUDA GPU. No cloud.
 >
 > **All WER / speed / VRAM figures below are estimates** drawn from public leaderboards and community benchmarks up to early 2026. Anything I could not verify against a source in this session is tagged **`unverified (2026)`**. Numbers vary heavily with audio domain, batch size, VAD settings, and driver/CUDA versions — treat them as ranking guides, not contracts.
 
@@ -21,7 +21,7 @@
 
 ## Requirements
 
-What the STT layer actually has to do for Wisper:
+What the STT layer actually has to do for Say It:
 
 - **Batch (not streaming) transcription.** The whole clip is available the moment the user hits stop. We do **not** need live partial hypotheses. This widens our options — streaming-only engines get no bonus, and offline decoding is more accurate than streaming.
 - **Fast turnaround after stop.** Perceived latency = (audio length) × (1 / real-time factor) + model overhead. For a ~10 s utterance at RTF 10× that's ~1 s. Anything under ~1–1.5 s feels instant. This is the real KPI, not throughput on hour-long files.
@@ -103,11 +103,11 @@ Rule of thumb: **fp16 if VRAM allows, else int8_float16.** The quality differenc
 
 ## VAD / endpointing
 
-- **Silero VAD** is built into faster-whisper (`vad_filter=True`). It strips leading/trailing/inter-word silence before decoding. Benefits for Wisper:
+- **Silero VAD** is built into faster-whisper (`vad_filter=True`). It strips leading/trailing/inter-word silence before decoding. Benefits for Say It:
   - **Fewer hallucinations** — Whisper invents text on pure silence; VAD removes those regions.
   - **Faster** — less audio to decode when the user pauses or leaves dead air after pressing the hotkey.
   - **Cleaner output** — no phantom "Thank you." / "Thanks for watching." on silent tails (a well-known Whisper artifact).
-- **Endpointing:** because Wisper uses an explicit **hotkey to stop**, we do **not** need automatic VAD-based endpointing to decide when speech ends — the user tells us. VAD is used purely as a *pre-filter on the captured clip*, not as a live turn-detector. Keep it simple.
+- **Endpointing:** because Say It uses an explicit **hotkey to stop**, we do **not** need automatic VAD-based endpointing to decide when speech ends — the user tells us. VAD is used purely as a *pre-filter on the captured clip*, not as a live turn-detector. Keep it simple.
 - Tunables worth exposing: `min_silence_duration_ms` (default ~500 ms) and a small speech pad so word onsets aren't clipped. Start with defaults.
 - **Recommendation:** enable Silero VAD filtering by default. It's free, bundled, and directly kills the two worst Whisper failure modes (silence hallucination + wasted decode time).
 

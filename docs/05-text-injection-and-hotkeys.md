@@ -1,6 +1,6 @@
 # 05 – Global Hotkeys & Instant Whole-Paragraph Text Injection
 
-Scope: how Wisper toggles recording with a **system-wide hotkey** and then drops the
+Scope: how Say It toggles recording with a **system-wide hotkey** and then drops the
 **entire transcript at once** into whatever text field currently has focus (VS Code,
 Notepad, a browser box, the Claude Code terminal). Owns nothing about audio/STT/UI.
 
@@ -22,7 +22,7 @@ Rationale in the sections below.
 
 ### Requirements
 
-- **System-wide**: fires even when Wisper has no focus / no visible window.
+- **System-wide**: fires even when Say It has no focus / no visible window.
 - **Toggle** by default (press to start, press again to stop). **Push-to-talk** (record
   while held) as an option → needs both key-down and key-up.
 - **User-configurable** key combo, persisted to config.
@@ -159,8 +159,8 @@ while u32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
   commands. This framing only happens on a **real paste** — another reason to *paste*
   into terminals rather than SendInput-type into them (typed newlines would fire commands).
 - **Focus at paste time**: capture `GetForegroundWindow()` **when recording starts** and,
-  if Wisper ever shows a window, `SetForegroundWindow` back to that handle before pasting —
-  otherwise you paste into your own app. If Wisper stays a background/no-window process,
+  if Say It ever shows a window, `SetForegroundWindow` back to that handle before pasting —
+  otherwise you paste into your own app. If Say It stays a background/no-window process,
   focus already sits on the target and no restore is needed.
 - **Apps that block programmatic paste** (some hardened/secure input fields, certain
   banking or password fields): the paste no-ops. Detect nothing changed if you can, and
@@ -196,7 +196,7 @@ KEYEVENTF_UNICODE, KEYEVENTF_KEYUP = 0x4, 0x2
 
 ## Assumptions & open questions for synthesis
 
-- **Assumed**: Wisper runs as a background process with no focused window at inject time,
+- **Assumed**: Say It runs as a background process with no focused window at inject time,
   so the target field keeps focus and no `SetForegroundWindow` dance is needed. If a UI
   window is added, revisit focus restore.
 - **Assumed**: losing non-text clipboard contents (image/HTML/files) on injection is an

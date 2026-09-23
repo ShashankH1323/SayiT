@@ -1,6 +1,6 @@
 # 07 — Cross-Platform Scaling
 
-**Scope:** How Wisper runs on hardware other than the default target (Windows 11 + NVIDIA CUDA). Covers the engine-abstraction design that lets STT and LLM runtimes swap per platform, the recommended runtime per platform, rough performance tiers, and packaging.
+**Scope:** How Say It runs on hardware other than the default target (Windows 11 + NVIDIA CUDA). Covers the engine-abstraction design that lets STT and LLM runtimes swap per platform, the recommended runtime per platform, rough performance tiers, and packaging.
 
 **Not in scope:** model accuracy/benchmark comparison (see doc 02), Indic/translation (doc 03), audio capture / text injection / cleanup prompt / UI internals (they don't change per platform — that's the whole point).
 
@@ -90,7 +90,7 @@ whisper.cpp **OpenVINO** backend (`-DWHISPER_OPENVINO=1`) runs encoder inference
 whisper.cpp built with OpenBLAS. Realistic only at **tiny / base / distil-small** for interactive latency; large models run below real time (RTF < 1×) on typical CPUs and are unusable for a hotkey flow. Cleanup LLM should be **disabled (Passthrough)** or a very small Ollama model on CPU-only machines, otherwise cleanup dominates latency. This is the guaranteed-works floor, not a target experience.
 
 ### 3.6 Ryzen AI / NPUs (note only, do not build yet)
-whisper.cpp lists AMD Ryzen AI NPU via VitisAI and other NPU paths (CANN/MUSA). **Speculative for Wisper — skip until there's a real user on that hardware.** YAGNI.
+whisper.cpp lists AMD Ryzen AI NPU via VitisAI and other NPU paths (CANN/MUSA). **Speculative for Say It — skip until there's a real user on that hardware.** YAGNI.
 
 ---
 
@@ -104,7 +104,7 @@ Same principle: the Python app is identical; only the bundled runtime differs.
 - **Later / optional:** a Tauri (preferred, lighter) or Electron shell if a richer UI is wanted; the Python core runs as a sidecar process. **Not needed for v1** — a tray app is enough. Defer.
 - **Model files** are downloaded on first run per engine (HF cache / whisper.cpp GGUF / MLX), not bundled, to keep installers small.
 
-**Ollama** is assumed installed separately by the user on every platform (it's its own installer with its own GPU detection). Wisper just talks to its local HTTP API — so the LLM backend abstraction on most platforms is really "is Ollama reachable?" and the concrete class barely differs across OSes. Only STT truly varies.
+**Ollama** is assumed installed separately by the user on every platform (it's its own installer with its own GPU detection). Say It just talks to its local HTTP API — so the LLM backend abstraction on most platforms is really "is Ollama reachable?" and the concrete class barely differs across OSes. Only STT truly varies.
 
 ---
 
