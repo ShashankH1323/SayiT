@@ -13,6 +13,7 @@ resample work with numpy alone.
 from __future__ import annotations
 
 import logging
+import threading
 
 import numpy as np
 
@@ -139,6 +140,12 @@ class AudioCapture:
         self._monitoring = False
         self._monitor_stream = None
         self._monitor_level = 0.0
+        # pywebview runs every JS->Python call on its own thread, so start/stop
+        # preview can race. Unserialized, two starts each open a stream and one
+        # is orphaned: still capturing, unstoppable, and its PortAudio callback
+        # crashes the process once Python frees it. RLock: start_monitor calls
+        # stop_monitor.
+        self._monitor_lock = threading.RLock()
 
     def _pick_explicit(self, hostapis, devices) -> int | None:
         """Resolve an explicit :attr:`device` to a live input index, else None.
@@ -392,57 +399,59 @@ class AudioCapture:
 
     def start_monitor(self, device=None) -> None:
         """Open a lightweight, non-recording input stream for device preview / UI waveform."""
-        if _sd is None or self._recording:
-            return
-        self.stop_monitor()
-        old_dev = self.device
-        if device is not None:
-            self.device = device
-        try:
-            candidates = self._input_candidates()
-            if not candidates:
+        with self._monitor_lock:
+            if _sd is None or self._recording:
                 return
-            dev = candidates[0]
-            info = _sd.query_devices(dev, "input")
-            sr = int(round(info["default_samplerate"]))
-            channels = min(max(1, int(info["max_input_channels"])), 2)
-            hostapi_name = _sd.query_hostapis(info["hostapi"])["name"]
-            extra = None
-            if "WASAPI" in hostapi_name and hasattr(_sd, "WasapiSettings"):
-                extra = _sd.WasapiSettings()
-            self._monitor_stream = _sd.InputStream(
-                device=dev,
-                channels=channels,
-                samplerate=sr,
-                dtype="float32",
-                blocksize=int(sr * 0.03),
-                callback=self._monitor_callback,
-                extra_settings=extra,
-            )
-            self._monitor_stream.start()
-            self._monitoring = True
-            log.info("audio monitor: running on device %d (%s)", dev, hostapi_name)
-        except Exception as e:
-            log.debug("audio monitor start failed: %s", e)
             self.stop_monitor()
-        finally:
+            old_dev = self.device
             if device is not None:
-                self.device = old_dev
+                self.device = device
+            try:
+                candidates = self._input_candidates()
+                if not candidates:
+                    return
+                dev = candidates[0]
+                info = _sd.query_devices(dev, "input")
+                sr = int(round(info["default_samplerate"]))
+                channels = min(max(1, int(info["max_input_channels"])), 2)
+                hostapi_name = _sd.query_hostapis(info["hostapi"])["name"]
+                extra = None
+                if "WASAPI" in hostapi_name and hasattr(_sd, "WasapiSettings"):
+                    extra = _sd.WasapiSettings()
+                self._monitor_stream = _sd.InputStream(
+                    device=dev,
+                    channels=channels,
+                    samplerate=sr,
+                    dtype="float32",
+                    blocksize=int(sr * 0.03),
+                    callback=self._monitor_callback,
+                    extra_settings=extra,
+                )
+                self._monitor_stream.start()
+                self._monitoring = True
+                log.info("audio monitor: running on device %d (%s)", dev, hostapi_name)
+            except Exception as e:
+                log.debug("audio monitor start failed: %s", e)
+                self.stop_monitor()
+            finally:
+                if device is not None:
+                    self.device = old_dev
 
     def stop_monitor(self) -> None:
         """Stop the non-recording audio monitor."""
-        s, self._monitor_stream = self._monitor_stream, None
-        self._monitoring = False
-        self._monitor_level = 0.0
-        if s is not None:
-            try:
-                s.stop()
-            except Exception:
-                pass
-            try:
-                s.close()
-            except Exception:
-                pass
+        with self._monitor_lock:
+            s, self._monitor_stream = self._monitor_stream, None
+            self._monitoring = False
+            self._monitor_level = 0.0
+            if s is not None:
+                try:
+                    s.stop()
+                except Exception:
+                    pass
+                try:
+                    s.close()
+                except Exception:
+                    pass
 
     def current_level(self) -> float:
         """Peak absolute amplitude (~0..1) of the most recently captured audio
