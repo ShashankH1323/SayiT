@@ -6,7 +6,7 @@ import path from "path";
 export default defineConfig({
   base: "./",
   plugins: [
-    react({ babel: { plugins: ["styled-jsx/babel"] } }),
+    react(),
     viteSingleFile(),
   ],
   resolve: {

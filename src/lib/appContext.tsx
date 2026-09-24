@@ -125,7 +125,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (m.status === "fulfilled") setModels(m.value);
       unsub = subscribeStatus((next) => {
         const prev = prevStatus.current;
-        setStatus(next);
+        // Only push a React update when something visible actually changed. The
+        // backend returns a fresh Status object every tick even when idle, so an
+        // unconditional setStatus re-rendered the WHOLE app (the context value
+        // depends on `status`) many times/sec for the app's entire lifetime —
+        // heaviest on Permissions (live meter + .glass over animated blobs),
+        // which is what froze onboarding. Gating on content (level quantized to
+        // ~2%) makes an idle screen do zero re-render work.
+        if (
+          !prev ||
+          prev.state !== next.state ||
+          prev.last_text !== next.last_text ||
+          prev.last_error !== next.last_error ||
+          Math.abs((prev.level || 0) - (next.level || 0)) >= 0.02
+        ) {
+          setStatus(next);
+        }
 
         // Haptic feedback cues (activation, deactivation, success, failure)
         const soundEnabled = soundEnabledRef.current;
@@ -159,7 +174,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           toastTimer.current = setTimeout(() => setPastedToast(null), TOAST_MS);
         }
         prevStatus.current = next;
-      }, 60);
+      }, 80);
     }).catch(() => {});
     return () => { alive = false; unsub(); if (toastTimer.current) clearTimeout(toastTimer.current); };
   }, []);

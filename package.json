@@ -14,15 +14,10 @@
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "gsap": "^3.12.7",
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.6.0",
     "lucide-react": "^0.460.0",
-    "canvas-confetti": "^1.9.4",
-    "motion": "^11.15.0",
-    "framer-motion": "^11.15.0",
-    "@paper-design/shaders-react": "^0.0.46",
-    "styled-jsx": "^5.1.6"
+    "canvas-confetti": "^1.9.4"
   },
   "devDependencies": {
     "vite": "^6.1.0",

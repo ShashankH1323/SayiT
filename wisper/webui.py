@@ -114,8 +114,9 @@ def _clamp_to_workarea(window, w: int, h: int):
     if sys.platform != "win32":
         return
     try:
+        import clr
+        clr.AddReference("System.Windows.Forms")
         import System.Windows.Forms as WinForms
-        from System.Windows.Forms import MethodInvoker
         from webview.platforms.winforms import BrowserView
         form = BrowserView.instances.get(window.uid)
         if form is None:
@@ -135,7 +136,7 @@ def _clamp_to_workarea(window, w: int, h: int):
                 log.debug("clamp_to_workarea (ui thread) error: %s", e)
 
         if form.InvokeRequired:
-            form.BeginInvoke(MethodInvoker(_clamp))
+            form.BeginInvoke(WinForms.MethodInvoker(_clamp))
         else:
             _clamp()
     except Exception as e:
@@ -344,15 +345,16 @@ class Api:
                             _set_taskbar_visible(hwnd, mode != "minibar")
                             if mode != "minibar":
                                 try:
+                                    import clr
+                                    clr.AddReference("System.Windows.Forms")
                                     import System.Windows.Forms as WinForms
-                                    from System.Windows.Forms import MethodInvoker
 
                                     def _restore():
                                         # Activate() alone won't un-minimize a WinForms form.
                                         form.WindowState = WinForms.FormWindowState.Normal
                                         form.Activate()
 
-                                    form.BeginInvoke(MethodInvoker(_restore))
+                                    form.BeginInvoke(WinForms.MethodInvoker(_restore))
                                 except Exception:
                                     pass
                     except Exception as ex:
@@ -420,7 +422,6 @@ def _setup_windows_native(window, api):
         clr.AddReference("System.Drawing")
         import System.Windows.Forms as WinForms
         import System.Drawing as Drawing
-        from System.Windows.Forms import MethodInvoker
         from webview.platforms.winforms import BrowserView
 
         form = BrowserView.instances.get(window.uid)
@@ -499,7 +500,7 @@ def _setup_windows_native(window, api):
                 log.warning("[wisper] _init_native error: %s", inner_ex)
 
         if form.InvokeRequired:
-            form.BeginInvoke(MethodInvoker(_init_native))
+            form.BeginInvoke(WinForms.MethodInvoker(_init_native))
         else:
             _init_native()
     except Exception as e:
