@@ -1,6 +1,6 @@
 """pywebview bridge for Wisper's native UI.
 
-A frameless Edge WebView2 window (offline, no server) that loads
+A native Edge WebView2 window (offline, no server) that loads
 ``wisper/web/index.html`` and exposes ``window.pywebview.api`` -> the ``Api``
 class below. Every method is JSON-serializable in and out; the frontend polls
 ``get_status()`` at ~30fps.
@@ -14,6 +14,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 import sys
+import tempfile
+import threading
+import time
 
 from wisper import audio, history, models, stt
 from wisper.app import State
@@ -213,7 +216,18 @@ class Api:
         return [label for label, _ in audio.list_input_devices()]
 
     def refresh_devices(self):
-        return [label for label, _ in audio.refresh_input_devices()]
+        # A live preview monitor stream is commonly open on this page. PortAudio's
+        # Pa_Terminate() (inside refresh_input_devices) with an open stream is
+        # undefined behavior and can hard-crash the process, so stop the monitor
+        # first, rescan, then resume preview. audio.refresh_input_devices() also
+        # self-guards for any other caller. (Does not touch set_window_mode.)
+        was_monitoring = getattr(self.app.audio, "_monitoring", False)
+        if was_monitoring:
+            self.app.audio.stop_monitor()
+        devices = audio.refresh_input_devices()
+        if was_monitoring:
+            self.app.audio.start_monitor()
+        return [label for label, _ in devices]
 
     def set_device(self, name):
         dev = _bare_device_name(name)  # store the matchable name in both places
@@ -333,49 +347,98 @@ class Api:
     def set_window_mode(self, mode: str):
         """Switch between 'full' (720x720) and 'minibar' (120x32).
         In minibar mode, window stays on_top and becomes a compact floating bar,
-        and is hidden from the taskbar (accessible via the Windows tray icon)."""
-        if self._window is not None:
+        and is hidden from the taskbar (accessible via the Windows tray icon).
+
+        pywebview 5.4 runs every js_api method on a fresh JS-bridge WORKER thread
+        (webview/util.py js_bridge_call -> Thread(target=_call).start()). Touching
+        the WebView2-hosting WinForms window from that worker -- SetWindowPos in
+        the taskbar restyle, Form.TopMost via ``on_top``, or ``resize()`` -- is a
+        cross-thread call with no marshaling and hangs the WinForms UI thread
+        ("Not Responding", first hit on the onboarding->home transition). So the
+        ENTIRE window-manipulation body lives in ``_apply`` and is dispatched onto
+        the UI thread via ``form.BeginInvoke`` (async, fire-and-forget) -- the same
+        pattern as _init_native and _clamp_to_workarea. On the UI thread already
+        (tray handler) InvokeRequired is False and _apply runs inline; when the
+        form can't be resolved (non-winforms backend / tests) it also runs inline
+        so behavior is preserved."""
+        if sys.platform != "win32" or self._window is None:
+            return None
+
+        form = None
+        WinForms = None
+        try:
+            import clr
+            clr.AddReference("System.Windows.Forms")
+            import System.Windows.Forms as WinForms
+            from webview.platforms.winforms import BrowserView
+            form = BrowserView.instances.get(self._window.uid)
+        except Exception as e:
+            log.debug("set_window_mode: form resolve failed: %s", e)
+
+        def _apply():
+            # Runs on the WinForms UI thread (or inline when form is None). Every
+            # cross-thread-unsafe op is here: taskbar restyle, WindowState/Activate,
+            # on_top (Form.TopMost) and resize. resize()/on_top= do direct Win32/CLR
+            # calls that are correct on the owning thread, and the inner BeginInvokes
+            # in _restore/_clamp collapse to InvokeRequired=False no-ops.
             try:
-                if sys.platform == "win32":
-                    try:
-                        from webview.platforms.winforms import BrowserView
-                        form = BrowserView.instances.get(self._window.uid)
-                        if form is not None:
-                            hwnd = form.Handle.ToInt64()
-                            _set_taskbar_visible(hwnd, mode != "minibar")
+                if form is not None:
+                    hwnd = form.Handle.ToInt64()
+
+                    def _taskbar_ok():
+                        # True when WS_EX_APPWINDOW/TOOLWINDOW already match the
+                        # target, so we can skip the SWP_FRAMECHANGED relayout.
+                        try:
+                            import ctypes
+                            from ctypes import wintypes
+                            GWL_EXSTYLE = -20
+                            WS_EX_TOOLWINDOW = 0x00000080
+                            WS_EX_APPWINDOW = 0x00040000
+                            user32 = ctypes.windll.user32
+                            get_long = getattr(user32, "GetWindowLongPtrW", user32.GetWindowLongW)
+                            get_long.argtypes = [wintypes.HWND, ctypes.c_int]
+                            get_long.restype = ctypes.c_ssize_t
+                            cur = get_long(hwnd, GWL_EXSTYLE)
                             if mode != "minibar":
-                                try:
-                                    import clr
-                                    clr.AddReference("System.Windows.Forms")
-                                    import System.Windows.Forms as WinForms
+                                return bool(cur & WS_EX_APPWINDOW) and not (cur & WS_EX_TOOLWINDOW)
+                            return bool(cur & WS_EX_TOOLWINDOW) and not (cur & WS_EX_APPWINDOW)
+                        except Exception:
+                            return False
 
-                                    def _restore():
-                                        # Activate() alone won't un-minimize a WinForms form.
-                                        form.WindowState = WinForms.FormWindowState.Normal
-                                        form.Activate()
-
-                                    form.BeginInvoke(WinForms.MethodInvoker(_restore))
-                                except Exception:
-                                    pass
-                    except Exception as ex:
-                        log.debug("taskbar toggle error: %s", ex)
+                    if not _taskbar_ok():
+                        _set_taskbar_visible(hwnd, mode != "minibar")
+                    if mode != "minibar" and WinForms is not None:
+                        # Activate() alone won't un-minimize a WinForms form.
+                        form.WindowState = WinForms.FormWindowState.Normal
+                        form.Activate()
 
                 if mode == "minibar":
                     # Reduced to half: 120 width x 32 height
                     self._window.resize(120, 32)
-                    try:
+                    if getattr(self._window, "on_top", None) is not True:
                         self._window.on_top = True
-                    except Exception:
-                        pass
                 else:
-                    try:
+                    if getattr(self._window, "on_top", None) is not False:
                         self._window.on_top = False
-                    except Exception:
-                        pass
-                    self._window.resize(720, 720)
+                    # Skip the resize (and its relayout) when already 720x720.
+                    if not (form is not None and form.Width == 720 and form.Height == 720):
+                        self._window.resize(720, 720)
                     _clamp_to_workarea(self._window, 720, 720)
             except Exception as e:
-                log.warning("[wisper] set_window_mode failed: %s", e)
+                log.warning("[wisper] set_window_mode _apply failed: %s", e)
+
+        # Marshal to the UI thread from the JS worker; run inline when already on
+        # it (tray) or when there's no WinForms form (tests / other backends).
+        # A BeginInvoke before the window handle exists raises -- fall back to
+        # running _apply() inline rather than letting it propagate to the caller.
+        try:
+            if form is not None and form.InvokeRequired:
+                form.BeginInvoke(WinForms.MethodInvoker(_apply))
+            else:
+                _apply()
+        except Exception as e:
+            log.warning("[wisper] set_window_mode dispatch failed, running inline: %s", e)
+            _apply()
         return None
 
     def window_drag(self):
@@ -386,6 +449,28 @@ class Api:
 _window = None     # module ref to the live window (single-window app)
 _tray_icon = None  # Windows system tray notify icon
 _instance_mutex = None  # OS single-instance mutex; held for the process lifetime
+
+
+def _webview_storage_dir(appdata: str | None) -> str | None:
+    """Return a usable persistent profile, quarantining the legacy profile once."""
+    if not appdata:
+        return None
+
+    base = Path(appdata) / "SayIt"
+    storage = base / "webview-v2"
+    legacy = base / "webview"
+    if not storage.exists() and legacy.exists():
+        recovery = base / f"webview-recovery-{int(time.time())}"
+        try:
+            legacy.rename(recovery)
+        except OSError:
+            return tempfile.mkdtemp(prefix="sayit-webview-")
+
+    try:
+        storage.mkdir(parents=True, exist_ok=True)
+        return str(storage)
+    except OSError:
+        return tempfile.mkdtemp(prefix="sayit-webview-")
 
 
 def _acquire_single_instance() -> bool:
@@ -508,10 +593,9 @@ def _setup_windows_native(window, api):
 
 
 def launch(app):
-    """Create the frameless native window and block on the pywebview loop.
+    """Create the native window and block on the pywebview loop.
 
-    Windows uses the default edgechromium/WebView2 backend with transparent
-    windowing so only the floating pill renders in minibar mode.
+    Windows uses the default Edge WebView2 backend with a persistent profile.
     """
     global _window
     import os
@@ -537,17 +621,17 @@ def launch(app):
     api._window = _window
 
     def on_shown():
-        _setup_windows_native(_window, api)
+        threading.Thread(
+            target=_setup_windows_native,
+            args=(_window, api),
+            name="wisper-native-setup",
+            daemon=True,
+        ).start()
 
     _window.events.shown += on_shown
 
     appdata = os.environ.get("APPDATA")
-    storage_dir = os.path.join(appdata, "SayIt", "webview") if appdata else None
-    if storage_dir:
-        try:
-            os.makedirs(storage_dir, exist_ok=True)
-        except Exception:
-            storage_dir = None
+    storage_dir = _webview_storage_dir(appdata)
 
     try:
         webview.start(private_mode=False, storage_path=storage_dir)

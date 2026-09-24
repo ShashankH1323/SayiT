@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import tempfile
+import threading
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
@@ -11,6 +13,8 @@ log = logging.getLogger("wisper")
 
 import os
 import sys
+
+_save_lock = threading.Lock()  # serializes config writes across worker threads
 
 def get_config_path() -> Path:
     if getattr(sys, "frozen", False):
@@ -98,7 +102,22 @@ class Config:
         return cfg
 
     def save(self, path: str | Path = _DEFAULT_PATH) -> None:
-        Path(path).write_text(json.dumps(asdict(self), indent=2) + "\n", encoding="utf-8")
+        """Write atomically: serialized by a module lock, then temp file in the
+        SAME dir + os.replace, so a concurrent read/write never sees a torn file."""
+        p = Path(path)
+        content = json.dumps(asdict(self), indent=2) + "\n"
+        with _save_lock:
+            fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=p.name + ".", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(content)
+                os.replace(tmp, p)
+            except OSError:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+                raise
 
 
 if __name__ == "__main__":  # migration self-check (stdlib only, no framework)

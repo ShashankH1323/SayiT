@@ -29,6 +29,27 @@ except Exception:  # pragma: no cover - optional; start() will explain if missin
     _sd = None
 
 
+# Count of PortAudio streams this process currently holds open (recording +
+# monitor, across all AudioCapture instances). refresh_input_devices() must
+# never call Pa_Terminate() while this is > 0: terminating with a live stream is
+# undefined behavior and can hard-crash the process (native, uncatchable). A
+# stream is counted from InputStream() construction, which already OPENS the
+# device, not from .start(). GIL-atomic int, a coarse "any stream open?" guard;
+# no lock needed at UI-click refresh rates.
+# ponytail: process-global count, not per-device; fine, the guard is all-or-none.
+_open_streams = 0
+
+
+def _incr_streams() -> None:
+    global _open_streams
+    _open_streams += 1
+
+
+def _decr_streams() -> None:
+    global _open_streams
+    _open_streams = max(0, _open_streams - 1)
+
+
 # WDM-KS excluded everywhere: unreliable here (PaErrorCode -9999 WdmSyncIoctl) and
 # PortAudio may hand us one via the raw system default. Shared with AudioCapture so
 # the host API a mic is listed under is the one it gets opened on.
@@ -82,14 +103,27 @@ def list_input_devices() -> list[tuple[str, int]]:
 
 def refresh_input_devices() -> list[tuple[str, int]]:
     """Re-initialize PortAudio backend to detect newly plugged-in/removed devices,
-    then return the fresh list_input_devices()."""
+    then return the fresh list_input_devices().
+
+    Pa_Terminate() with an open stream is undefined behavior (can hard-crash the
+    process), so we skip the terminate/initialize whenever this process holds any
+    open PortAudio stream (:data:`_open_streams` > 0) and just re-list. Callers
+    that need a true hardware rescan while previewing (mic settings) stop their
+    monitor first -- see Api.refresh_devices in webui.py."""
     global _sd
-    if _sd is not None:
-        try:
-            _sd._terminate()
-            _sd._initialize()
-        except Exception as e:
-            log.warning("error reinitializing sounddevice: %s", e)
+    if _sd is None:
+        return []
+    if _open_streams > 0:
+        log.info(
+            "refresh_input_devices: %d open stream(s); skipping PortAudio reinit",
+            _open_streams,
+        )
+        return list_input_devices()
+    try:
+        _sd._terminate()
+        _sd._initialize()
+    except Exception as e:
+        log.warning("error reinitializing sounddevice: %s", e)
     return list_input_devices()
 
 
@@ -280,21 +314,31 @@ class AudioCapture:
         extra = None
         if "WASAPI" in hostapi_name and hasattr(_sd, "WasapiSettings"):
             extra = _sd.WasapiSettings()  # exclusive=False -> shared, non-comms
-        self._stream = _sd.InputStream(
-            device=dev,
-            channels=channels,
-            samplerate=self._native_sr,
-            dtype="float32",
-            blocksize=int(self._native_sr * 0.03),  # ~30 ms block
-            callback=self._callback,
-            extra_settings=extra,
-        )
+        # Count the device BEFORE InputStream() -- construction itself OPENS it at
+        # the PortAudio level, so incrementing afterwards leaves a sub-ms window
+        # where a concurrent refresh_input_devices() could Pa_Terminate() a
+        # live-but-uncounted stream (native, uncatchable crash). If construction
+        # raises, self._stream is never assigned and _close_stream() (which only
+        # decrements a real ref) can't undo the count -- so decrement here instead.
+        _incr_streams()
         try:
+            self._stream = _sd.InputStream(
+                device=dev,
+                channels=channels,
+                samplerate=self._native_sr,
+                dtype="float32",
+                blocksize=int(self._native_sr * 0.03),  # ~30 ms block
+                callback=self._callback,
+                extra_settings=extra,
+            )
             self._stream.start()
         except BaseException:
             # InputStream(...) already OPENED the device; if start() (or anything
             # after construction) fails, close it here or the device leaks (BUG 1).
-            self._close_stream()
+            if self._stream is None:
+                _decr_streams()       # construction raised before a ref existed
+            else:
+                self._close_stream()  # opened then failed: release + decrement
             raise
         log.info("audio: capturing on %s (device %d, %d Hz)", hostapi_name, dev, self._native_sr)
 
@@ -306,6 +350,7 @@ class AudioCapture:
         s, self._stream = self._stream, None
         if s is None:
             return
+        _decr_streams()
         try:
             s.stop()
         except Exception:
@@ -410,16 +455,25 @@ class AudioCapture:
             extra = None
             if "WASAPI" in hostapi_name and hasattr(_sd, "WasapiSettings"):
                 extra = _sd.WasapiSettings()
-            self._monitor_stream = _sd.InputStream(
-                device=dev,
-                channels=channels,
-                samplerate=sr,
-                dtype="float32",
-                blocksize=int(sr * 0.03),
-                callback=self._monitor_callback,
-                extra_settings=extra,
-            )
-            self._monitor_stream.start()
+            _incr_streams()  # count BEFORE construction opens the device (see _open_stream)
+            try:
+                self._monitor_stream = _sd.InputStream(
+                    device=dev,
+                    channels=channels,
+                    samplerate=sr,
+                    dtype="float32",
+                    blocksize=int(sr * 0.03),
+                    callback=self._monitor_callback,
+                    extra_settings=extra,
+                )
+                self._monitor_stream.start()
+            except BaseException:
+                # Construction may raise before self._monitor_stream is assigned;
+                # then stop_monitor() sees no ref and won't decrement, so undo the
+                # incr here. Re-raise for the outer handler to log + stop_monitor().
+                if self._monitor_stream is None:
+                    _decr_streams()
+                raise
             self._monitoring = True
             log.info("audio monitor: running on device %d (%s)", dev, hostapi_name)
         except Exception as e:
@@ -435,6 +489,7 @@ class AudioCapture:
         self._monitoring = False
         self._monitor_level = 0.0
         if s is not None:
+            _decr_streams()
             try:
                 s.stop()
             except Exception:

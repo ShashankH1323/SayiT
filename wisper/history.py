@@ -3,15 +3,17 @@
 Lives next to config.json at the project root (history.jsonl) and is capped to
 the last `max_items` (config.history_size) on every write. stdlib-only.
 
-# ponytail: rewrite-whole-file per record; O(n) but n<=history_size (~50). A torn
-# read during a write shows up as a corrupt trailing line, which load() skips --
-# no file lock / atomic replace for a single-user local app writing rarely.
+# ponytail: rewrite-whole-file per record; O(n) but n<=history_size (~50). Writes
+# are serialized by a module lock and land via os.replace, so concurrent worker
+# threads can't torn-write; a load() during a write still sees the old whole file.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import tempfile
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -19,6 +21,25 @@ log = logging.getLogger("wisper")
 
 import os
 import sys
+
+_write_lock = threading.Lock()  # serializes read-modify-write across worker threads
+
+
+def _atomic_write(p: Path, content: str) -> None:
+    """Write via a temp file in the SAME dir, then os.replace onto the target.
+    os.replace is atomic on the same volume (Windows + POSIX), so a reader
+    never sees a half-written file. Caller holds _write_lock."""
+    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=p.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(tmp, p)
+    except OSError:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 def get_history_path() -> Path:
     if getattr(sys, "frozen", False):
@@ -71,12 +92,12 @@ def record(text: str, max_items: int, path: str | Path = _DEFAULT_PATH) -> None:
         return
     p = Path(path)
     try:
-        recs = _read_records(p)
-        recs.append({"ts": datetime.now().isoformat(timespec="seconds"), "text": text})
-        if max_items and max_items > 0:
-            recs = recs[-max_items:]
-        p.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in recs),
-                     encoding="utf-8")
+        with _write_lock:
+            recs = _read_records(p)
+            recs.append({"ts": datetime.now().isoformat(timespec="seconds"), "text": text})
+            if max_items and max_items > 0:
+                recs = recs[-max_items:]
+            _atomic_write(p, "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in recs))
     except OSError:
         log.exception("[wisper] history.record failed; transcript not saved")
 
@@ -94,12 +115,12 @@ def delete_record(ts: str, text: str, path: str | Path = _DEFAULT_PATH) -> bool:
     """Delete a specific record matching timestamp and text. Returns True if removed."""
     p = Path(path)
     try:
-        recs = _read_records(p)
-        new_recs = [r for r in recs if not (r.get("ts") == ts and r.get("text") == text)]
-        if len(new_recs) != len(recs):
-            p.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in new_recs),
-                         encoding="utf-8")
-            return True
+        with _write_lock:
+            recs = _read_records(p)
+            new_recs = [r for r in recs if not (r.get("ts") == ts and r.get("text") == text)]
+            if len(new_recs) != len(recs):
+                _atomic_write(p, "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in new_recs))
+                return True
     except OSError:
         log.exception("[wisper] history.delete_record failed")
     return False
@@ -109,8 +130,9 @@ def clear_all(path: str | Path = _DEFAULT_PATH) -> None:
     """Clear all history records."""
     p = Path(path)
     try:
-        if p.exists():
-            p.write_text("", encoding="utf-8")
+        with _write_lock:
+            if p.exists():
+                _atomic_write(p, "")
     except OSError:
         log.exception("[wisper] history.clear_all failed")
 

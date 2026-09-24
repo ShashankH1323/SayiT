@@ -4,6 +4,7 @@ import { useApp } from "../../lib/appContext";
 import { cn } from "../../lib/utils";
 import { GlassButton } from "../primitives/GlassButton";
 import { IconOrb } from "../primitives/IconOrb";
+import { useWaveform } from "../../lib/useLevelHistory";
 import { formatHotkeyDisplay } from "../../lib/hotkeyUtils";
 import type { HistoryItem } from "../../lib/types";
 import ideasFlourish from "../../assets/handwritten_ideas_flow_better_spoken.png";
@@ -13,18 +14,12 @@ type Phase = "idle" | "recording" | "processing" | "pasted";
 function HomeSpeechWaveform({ level }: { level: number }) {
   const BARS = 21;
   const isSpeaking = level > 0.01;
-  const amplified = Math.min(1, level * 3.5);
+  // Rolling-history waveform: bars scroll with the voice; calm/flat when silent.
+  const heights = useWaveform(level, BARS, 4, 26);
 
   return (
     <div className="flex h-10 min-w-[220px] items-center justify-center gap-1.5 rounded-full glass px-5 py-2 shadow-soft-sm select-none animate-in fade-in-0 zoom-in-95 duration-200">
       {Array.from({ length: BARS }).map((_, i) => {
-        const bell = Math.sin(((i + 1) / (BARS + 1)) * Math.PI);
-        const minH = 4;
-        const maxH = 26;
-        const dynamicH = isSpeaking
-          ? minH + (maxH - minH) * bell * amplified * (0.8 + 0.2 * Math.sin(i * 1.6))
-          : minH;
-
         return (
           <span
             key={i}
@@ -34,7 +29,7 @@ function HomeSpeechWaveform({ level }: { level: number }) {
                 ? "bg-gradient-to-t from-red-500 to-rose-400 shadow-[0_0_8px_rgba(239,68,68,0.5)] opacity-95"
                 : "bg-red-400/30 opacity-40"
             )}
-            style={{ height: `${Math.round(dynamicH)}px` }}
+            style={{ height: `${heights[i]}px` }}
           />
         );
       })}
@@ -282,7 +277,7 @@ export function Home() {
             onClick={() => actions.navigate("history")}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); actions.navigate("history"); } }}
             title="Click to view all in History"
-            className="group flex items-center gap-3 rounded-card border border-hairline bg-white/80 backdrop-blur-md px-3 py-1.5 shadow-soft-xs hover:border-accent/30 hover:bg-white hover:shadow-soft-sm transition-all cursor-pointer max-w-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="group flex items-center gap-3 rounded-card border border-hairline bg-white/90 px-3 py-1.5 shadow-soft-xs hover:border-accent/30 hover:bg-white hover:shadow-soft-sm transition-all cursor-pointer max-w-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <div className="min-w-0 flex-1 text-left">
               <div className="flex items-center gap-1.5">
