@@ -8,7 +8,7 @@ import {
   playHapticFailure,
 } from "./hapticAudio";
 import type {
-  Status, Settings, Options, DeviceInfo, ModelsStatus, HistoryItem,
+  Status, Settings, Options, DeviceInfo, ModelsStatus, HistoryItem, DownloadProgress,
 } from "./types";
 
 export type Route = "home" | "history" | "transcription" | "settings-general" | "settings-audio" | "about";
@@ -32,9 +32,9 @@ export interface AppActions {
   close(): Promise<void>;
   quit(): Promise<void>;
   setWindowMode(mode: WindowMode): Promise<void>;
-  windowDrag(): Promise<void>;
   navigate(route: Route): void;
   setOnboarding(step: OnboardingStep): void;
+  finishSplash(): void;
   finishOnboarding(): void;
 }
 
@@ -44,6 +44,7 @@ export interface AppContextValue {
   options: Options | null;
   devices: DeviceInfo[];
   models: ModelsStatus;
+  downloadProgress: DownloadProgress | null;
   route: Route;
   onboarding: OnboardingStep;
   windowMode: WindowMode;
@@ -64,6 +65,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [options, setOptions] = useState<Options | null>(null);
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [models, setModels] = useState<ModelsStatus>({});
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
   const [route, setRoute] = useState<Route>("home");
   const [onboarding, setOnboardingStep] = useState<OnboardingStep>("splash");
   const [windowMode, setWindowModeState] = useState<WindowMode>("full");
@@ -71,22 +73,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const prevStatus = useRef<Status | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const downloadPoll = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  // Latest sound_effects, read by the mount-once status poll without re-subscribing.
+  const soundEnabledRef = useRef(true);
+  soundEnabledRef.current = settings?.sound_effects !== false;
 
-  // Splash always shows briefly, then first-run onboarding or straight to minibar state.
+  // Clear any lingering model-download poll on unmount.
+  useEffect(() => () => { if (downloadPoll.current) clearInterval(downloadPoll.current); }, []);
+
+  // Fallback safety timer for splash screen
   useEffect(() => {
-    let onboarded = false;
-    try { onboarded = localStorage.getItem(ONBOARD_KEY) === "1"; } catch {}
     const t = setTimeout(() => {
+      let onboarded = false;
+      try { onboarded = localStorage.getItem(ONBOARD_KEY) === "1"; } catch {}
       if (onboarded) {
         setOnboardingStep(null);
-        setWindowModeState("minibar");
-        api.set_window_mode("minibar").catch(() => {});
+        setRoute("home");
+        setWindowModeState("full");
+        api.set_window_mode("full").catch(() => {});
       } else {
-        setOnboardingStep("welcome");
+        setOnboardingStep((prev) => (prev === "splash" ? "welcome" : prev));
       }
-    }, SPLASH_MS);
+    }, SPLASH_MS + 1000);
     return () => clearTimeout(t);
   }, []);
+
+  // Sync mode-minibar class to document root for 100% transparent minibar rendering
+  useEffect(() => {
+    if (windowMode === "minibar") {
+      document.documentElement.classList.add("mode-minibar");
+      document.body.classList.add("mode-minibar");
+    } else {
+      document.documentElement.classList.remove("mode-minibar");
+      document.body.classList.remove("mode-minibar");
+    }
+  }, [windowMode]);
 
   // Initial fetch + status poll with haptic earcons and auto error popup expansion
   useEffect(() => {
@@ -107,7 +128,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setStatus(next);
 
         // Haptic feedback cues (activation, deactivation, success, failure)
-        const soundEnabled = settings?.sound_effects !== false;
+        const soundEnabled = soundEnabledRef.current;
         if (prev && soundEnabled) {
           if (prev.state === "idle" && next.state === "recording") {
             playHapticActivation();
@@ -141,7 +162,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }, 60);
     }).catch(() => {});
     return () => { alive = false; unsub(); if (toastTimer.current) clearTimeout(toastTimer.current); };
-  }, [settings?.sound_effects]);
+  }, []);
 
   const actions = useMemo<AppActions>(() => ({
     async toggle() { try { await api.toggle(); } catch (e) { console.error(e); } },
@@ -167,10 +188,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     async historyClear() { try { await api.history_clear(); } catch (e) { console.error(e); } },
     async downloadModel(name) {
-      const poll = setInterval(() => { api.models_status().then(setModels).catch(() => {}); }, 500);
-      try { await api.download_model(name); } catch (e) { console.error(e); }
-      finally {
-        clearInterval(poll);
+      if (downloadPoll.current) clearInterval(downloadPoll.current);
+      downloadPoll.current = setInterval(() => {
+        api.models_status().then(setModels).catch(() => {});
+        api.download_progress().then((p) => {
+          setDownloadProgress(p);
+          if (p.done || p.error) {
+            if (downloadPoll.current) clearInterval(downloadPoll.current);
+            downloadPoll.current = undefined;
+            api.models_status().then(setModels).catch(() => {});
+          }
+        }).catch(() => {});
+      }, 500);
+      try { await api.download_model(name); } catch (e) {
+        console.error(e);
+        if (downloadPoll.current) clearInterval(downloadPoll.current);
+        downloadPoll.current = undefined;
         try { setModels(await api.models_status()); } catch {}
       }
     },
@@ -190,21 +223,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setWindowModeState(mode);
       try { await api.set_window_mode(mode); } catch (e) { console.error(e); }
     },
-    async windowDrag() { try { await api.window_drag(); } catch (e) { console.error(e); } },
     navigate(r) { setRoute(r); },
     setOnboarding(step) { setOnboardingStep(step); },
+    finishSplash() {
+      let onboarded = false;
+      try { onboarded = localStorage.getItem(ONBOARD_KEY) === "1"; } catch {}
+      if (onboarded) {
+        setOnboardingStep(null);
+        setRoute("home");
+        setWindowModeState("full");
+        api.set_window_mode("full").catch(() => {});
+      } else {
+        setOnboardingStep("welcome");
+      }
+    },
     finishOnboarding() {
       try { localStorage.setItem(ONBOARD_KEY, "1"); } catch {}
       setOnboardingStep(null);
       setRoute("home");
-      setWindowModeState("minibar");
-      api.set_window_mode("minibar").catch(() => {});
+      setWindowModeState("full");
+      api.set_window_mode("full").catch(() => {});
     },
   }), []);
 
   const value = useMemo<AppContextValue>(() => ({
-    status, settings, options, devices, models, route, onboarding, windowMode, pastedToast, actions,
-  }), [status, settings, options, devices, models, route, onboarding, windowMode, pastedToast, actions]);
+    status, settings, options, devices, models, downloadProgress, route, onboarding, windowMode, pastedToast, actions,
+  }), [status, settings, options, devices, models, downloadProgress, route, onboarding, windowMode, pastedToast, actions]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

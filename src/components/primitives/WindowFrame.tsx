@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { Minus, X } from "lucide-react";
-import { useApp } from "../../lib/appContext";
 import { cn } from "../../lib/utils";
 
 export interface WindowFrameProps {
@@ -12,18 +11,9 @@ export interface WindowFrameProps {
 }
 
 export function WindowFrame({ title, onMinimize, onClose, right, className }: WindowFrameProps) {
-  const { actions } = useApp();
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 0 && !(e.target as HTMLElement).closest(".no-drag, button, input, a, select")) {
-      actions.windowDrag();
-    }
-  };
-
   return (
     <div
-      onMouseDown={handleMouseDown}
-      className={cn("drag relative flex h-11 shrink-0 select-none items-center justify-between px-4 cursor-default", className)}
+      className={cn("drag pywebview-drag-region relative flex h-11 shrink-0 select-none items-center justify-between px-4 cursor-default", className)}
     >
       <div className="w-16" />
 

@@ -17,9 +17,29 @@ from pathlib import Path
 
 log = logging.getLogger("wisper")
 
-# Same anchor as config.py: the project root (parent of the wisper package),
-# so it resolves identically regardless of the current working directory.
-_DEFAULT_PATH = Path(__file__).resolve().parent.parent / "history.jsonl"
+import os
+import sys
+
+def get_history_path() -> Path:
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).parent
+        portable_hist = exe_dir / "history.jsonl"
+        if portable_hist.exists():
+            return portable_hist
+        try:
+            test = exe_dir / ".test_write"
+            test.touch()
+            test.unlink()
+            return portable_hist
+        except Exception:
+            appdata = os.environ.get("APPDATA")
+            if appdata:
+                d = Path(appdata) / "SayIt"
+                d.mkdir(parents=True, exist_ok=True)
+                return d / "history.jsonl"
+    return Path(__file__).resolve().parent.parent / "history.jsonl"
+
+_DEFAULT_PATH = get_history_path()
 
 
 def _read_records(path: Path) -> list[dict]:

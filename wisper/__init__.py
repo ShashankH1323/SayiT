@@ -2,27 +2,35 @@ import os
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 os.environ.setdefault("HF_XET_HIGH_PERFORMANCE", "1")
 
-import os, sys, importlib.util
+import sys, importlib.util
 from pathlib import Path
 
 def _load_dotenv():
-    """Load key-value pairs from .env in project root into os.environ if present."""
-    env_file = Path(__file__).resolve().parent.parent / ".env"
-    if not env_file.is_file():
-        return
-    try:
-        with open(env_file, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                k = k.strip()
-                v = v.strip().strip("'\"")
-                if k:
-                    os.environ.setdefault(k, v)
-    except Exception:
-        pass
+    """Load key-value pairs from .env into os.environ if present."""
+    candidates = [
+        Path(__file__).resolve().parent.parent / ".env",
+        Path(sys.executable).parent / ".env",
+        Path.cwd() / ".env",
+    ]
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        candidates.append(Path(sys._MEIPASS) / ".env")
+
+    for env_file in candidates:
+        if env_file.is_file():
+            try:
+                with open(env_file, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("#") or "=" not in line:
+                            continue
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip("'\"")
+                        if k:
+                            os.environ.setdefault(k, v)
+                break
+            except Exception:
+                pass
 
 _load_dotenv()
 

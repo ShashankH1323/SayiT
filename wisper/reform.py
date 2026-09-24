@@ -21,8 +21,8 @@ import requests
 log = logging.getLogger("wisper")
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-DEFAULT_MODEL = "qwen/qwen3.8-27b"
-FALLBACK_MODELS = ("qwen/qwen3.8-27b", "openai/gpt-oss-20b", "openai/gpt-oss-120b")
+DEFAULT_MODEL = "openai/gpt-oss-20b"
+FALLBACK_MODELS = ("openai/gpt-oss-20b", "openai/gpt-oss-120b")
 
 _session = None
 

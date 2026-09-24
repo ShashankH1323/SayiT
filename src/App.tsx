@@ -31,15 +31,11 @@ export default function App() {
 
   // Onboarding owns the full window with frameless drag support.
   if (onboarding !== null) {
-    const handleDrag = (e: React.MouseEvent) => {
-      if (e.button === 0 && !(e.target as HTMLElement).closest("button, input, select, a, .no-drag")) {
-        actions.windowDrag();
-      }
-    };
-
     return (
-      <div onMouseDown={handleDrag} className="h-full w-full select-none overflow-x-hidden">
-        {onboarding === "splash" && <Splash />}
+      <div className="relative h-full w-full select-none overflow-x-hidden">
+        {/* Invisible top drag handle for frameless window movement */}
+        <div className="drag pywebview-drag-region absolute top-0 left-0 right-0 h-8 z-20 pointer-events-auto" />
+        {onboarding === "splash" && <Splash onComplete={actions.finishSplash} />}
         {onboarding === "welcome" && <Welcome />}
         {onboarding === "permissions" && <Permissions />}
         {onboarding === "hotkey" && <HotkeyGuide />}
@@ -48,23 +44,19 @@ export default function App() {
     );
   }
 
-  // Mini Bar collapsed floating mode (always on top, compact pill)
-  if (windowMode === "minibar") {
-    const handleDrag = (e: React.MouseEvent) => {
-      if (e.button === 0 && !(e.target as HTMLElement).closest("button, input, select, a, .no-drag")) {
-        actions.windowDrag();
-      }
-    };
-
-    const minibarState = pastedToast ? "pasted" : status.state === "error" ? "idle" : status.state;
+  // Mini Bar collapsed floating mode (always on top, compact pill).
+  // Gated by settings.show_minibar (default true); disabled -> stay full dashboard.
+  if (windowMode === "minibar" && settings?.show_minibar !== false) {
+    const minibarState =
+      pastedToast ? "pasted"
+      : status.state === "error" ? "idle"
+      : status.state === "recording" ? "listening"
+      : status.state;
 
     return (
-      <div
-        onMouseDown={handleDrag}
-        className="drag flex h-full w-full select-none items-center justify-center p-2 bg-transparent overflow-hidden"
-      >
+      <div className="flex h-full w-full select-none items-center justify-center bg-transparent overflow-hidden">
         <MiniBar
-          state={minibarState as any}
+          state={minibarState}
           level={status.level}
           text={pastedToast || status.last_text}
           hotkey={settings?.hotkey}
@@ -72,7 +64,6 @@ export default function App() {
           onCancel={actions.cancel}
           onExpand={() => actions.setWindowMode("full")}
           isStandalone
-          className="shadow-soft-xl"
         />
       </div>
     );
@@ -80,7 +71,10 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col overflow-x-hidden">
-      <WindowFrame onMinimize={actions.minimize} onClose={actions.close} />
+      <WindowFrame
+        onMinimize={actions.minimize}
+        onClose={settings?.show_minibar === false ? actions.minimize : actions.close}
+      />
 
       <div className="flex min-h-0 flex-1 overflow-x-hidden">
         <aside

@@ -109,12 +109,19 @@ def main():
 
     print(f"Success! Executable created at: {exe_path}")
 
+    # Copy .env and config.json into release directory so portable distribution works out-of-the-box
+    app_folder = release_dir / "SayIt"
+    if (ROOT / ".env").exists():
+        shutil.copy2(ROOT / ".env", app_folder / ".env")
+        print("Copied .env to release folder.")
+    if (ROOT / "config.json").exists():
+        shutil.copy2(ROOT / "config.json", app_folder / "config.json")
+        print("Copied config.json to release folder.")
+
     step("4. Creating Release Zip Package for Website Publishing")
     zip_output = release_dir / "SayIt-v1.0.0-windows-x64.zip"
     if zip_output.exists():
         zip_output.unlink()
-
-    app_folder = release_dir / "SayIt"
     with zipfile.ZipFile(zip_output, "w", zipfile.ZIP_DEFLATED) as zf:
         for file in app_folder.rglob("*"):
             arcname = Path("SayIt") / file.relative_to(app_folder)

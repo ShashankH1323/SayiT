@@ -38,11 +38,6 @@ _HALLUCINATIONS = {
     "please subscribe.",
     "subtitles by",
     "subtitles by the amara.org community",
-    "you",
-    "bye",
-    "bye.",
-    "silence",
-    "music",
 }
 
 
@@ -52,13 +47,18 @@ def _filter_hallucination(text: str) -> str:
     norm = cleaned.lower().strip(" .!?,;:")
     if not norm or norm in _HALLUCINATIONS:
         return ""
-    if any(norm.startswith(h) for h in ("subtitles by", "transcript by", "translated by")):
+    # Wipe an all-credit line ("subtitles by ..."), but not a real sentence
+    # that merely opens with those words.
+    if len(norm.split()) < 6 and any(
+        norm.startswith(h) for h in ("subtitles by", "transcript by", "translated by")
+    ):
         return ""
 
-    # Strip trailing hallucination sentences (e.g. "... Thanks for watching.")
+    # Excise the hallucination phrase in place; keep any surrounding real text
+    # (no trailing .* — that ate the rest of the sentence).
     for pat in (
-        r"(?i)\s*(?:thanks?\s+(?:you\s+)?for\s+watching|please\s+subscribe|subtitles\s+by\b).*$",
-        r"(?i)\s*(?:tch|tech|text)\s+terms?\s+(?:are|is|available|not\s+needed)\b.*$",
+        r"(?i)\s*(?:thanks?\s+(?:you\s+)?for\s+watching|please\s+subscribe|subtitles\s+by\b)",
+        r"(?i)\s*(?:tch|tech|text)\s+terms?\s+(?:are|is|available|not\s+needed)\b",
     ):
         cleaned = re.sub(pat, "", cleaned).strip()
 

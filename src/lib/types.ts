@@ -26,12 +26,16 @@ export interface Settings {
   samplerate: number;
   language: string;
   output_language: string;
-  cleanup_mode: string;
-  stt_provider: string;
-  groq_model: string;
+  cleanup_mode: "light" | "casual" | "formal" | "structured" | "raw";
+  stt_provider: "groq" | "local";
+  groq_model: "whisper-large-v3-turbo" | "whisper-large-v3";
   sound_effects: boolean;
   history_size: number;
-  paste_mode: string;
+  paste_mode: "auto" | "ctrl_v" | "ctrl_shift_v" | "off";
+  noise_suppression: boolean;
+  input_threshold: number; // 0..1
+  launch_at_login: boolean;
+  show_minibar: boolean;
 }
 
 /** get_options() -> selectable value lists. */
@@ -68,4 +72,13 @@ export interface ModelInfo {
   downloaded: boolean;
   path: string | null;
   error: string | null;
+}
+
+/** download_progress() -> live model-download feed. `pct` is 0..100 when known. */
+export interface DownloadProgress {
+  active: boolean;
+  name: string | null;
+  done: boolean;
+  error: string | null;
+  pct: number | null;
 }

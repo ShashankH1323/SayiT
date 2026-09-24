@@ -1,7 +1,7 @@
 // HotkeyGuide.tsx — Interactive shortcut guide during onboarding.
 // Shows reactive keycaps that illuminate in real-time as the user presses keys,
 // allows rebinding to any keyboard or mouse side keys, and confirms readiness.
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Keyboard,
   ArrowLeft,
@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   SlidersHorizontal,
   Sparkles,
-  MousePointer,
   RotateCcw,
 } from "lucide-react";
 import confetti from "canvas-confetti";
@@ -45,18 +44,19 @@ export function HotkeyGuide() {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't intercept if editing something else
-      const nextPressed = new Set(pressedKeys);
-      if (e.ctrlKey) nextPressed.add("ctrl");
-      if (e.altKey) nextPressed.add("alt");
-      if (e.shiftKey) nextPressed.add("shift");
-      if (e.metaKey) nextPressed.add("windows");
-      if (e.code === "Space" || e.key === " ") nextPressed.add("space");
-      else if (e.code.startsWith("Key")) nextPressed.add(e.code.slice(3).toLowerCase());
-      else if (e.code.startsWith("Digit")) nextPressed.add(e.code.slice(5).toLowerCase());
-      else if (/^F\d{1,2}$/i.test(e.key)) nextPressed.add(e.key.toLowerCase());
-      else nextPressed.add(e.key.toLowerCase());
-
-      setPressedKeys(nextPressed);
+      setPressedKeys((prev) => {
+        const next = new Set(prev);
+        if (e.ctrlKey) next.add("ctrl");
+        if (e.altKey) next.add("alt");
+        if (e.shiftKey) next.add("shift");
+        if (e.metaKey) next.add("windows");
+        if (e.code === "Space" || e.key === " ") next.add("space");
+        else if (e.code.startsWith("Key")) next.add(e.code.slice(3).toLowerCase());
+        else if (e.code.startsWith("Digit")) next.add(e.code.slice(5).toLowerCase());
+        else if (/^F\d{1,2}$/i.test(e.key)) next.add(e.key.toLowerCase());
+        else next.add(e.key.toLowerCase());
+        return next;
+      });
 
       // Check if hotkey matched
       if (matchesHotkey(e, currentHotkey)) {
@@ -100,7 +100,7 @@ export function HotkeyGuide() {
       window.removeEventListener("mousedown", handleMouseDown);
       window.removeEventListener("auxclick", handleMouseDown);
     };
-  }, [currentHotkey, isEditing, pressedKeys]);
+  }, [currentHotkey, isEditing]);
 
   const triggerSuccess = useCallback(() => {
     if (success) return;
@@ -229,6 +229,8 @@ export function HotkeyGuide() {
         {/* Reactive Key Display Container */}
         <div className="relative flex flex-col items-center gap-4">
           <div
+            role="status"
+            aria-live="polite"
             className={cn(
               "glass rounded-2xl p-6 shadow-soft-lg flex flex-col items-center gap-4 transition-all duration-300 min-w-[320px] max-w-md",
               success && "ring-2 ring-teal shadow-teal-soft",
@@ -303,7 +305,7 @@ export function HotkeyGuide() {
                 <button
                   type="button"
                   onClick={handleResetDefault}
-                  className="no-drag inline-flex items-center gap-1 text-caption text-ink-tertiary hover:text-ink transition-colors px-2 py-1 rounded-pill"
+                  className="no-drag inline-flex items-center gap-1 text-caption text-ink-tertiary hover:text-ink transition-colors px-2 py-1 rounded-pill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <RotateCcw size={12} />
                   Reset to default
@@ -320,9 +322,9 @@ export function HotkeyGuide() {
           size="lg"
           className="min-w-[200px]"
           iconRight={<ArrowRight size={18} strokeWidth={2} />}
-          onClick={() => actions.finishOnboarding()}
+          onClick={() => actions.setOnboarding("ready")}
         >
-          {success ? "Start using Say It" : "Continue to Home"}
+          Next
         </GlassButton>
         <GlassButton
           variant="ghost"
@@ -332,7 +334,7 @@ export function HotkeyGuide() {
         >
           Back
         </GlassButton>
-        <PaginationDots count={3} active={2} className="mt-2" />
+        <PaginationDots count={4} active={2} className="mt-2" />
       </footer>
     </div>
   );

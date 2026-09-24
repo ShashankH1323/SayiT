@@ -4,9 +4,10 @@
 import { Check, Zap, Sparkles, Shield, Cpu, MessageSquareText, FileText, ArrowRight } from "lucide-react";
 import { useApp } from "../../lib/appContext";
 import { cn } from "../../lib/utils";
+import type { Settings } from "../../lib/types";
 
 interface CleanupCardDef {
-  id: string;
+  id: Settings["cleanup_mode"];
   name: string;
   badge: string;
   badgeTone: "teal" | "accent" | "neutral";
@@ -113,7 +114,7 @@ export function Transcription() {
                   {isCloud && <span className="h-1.5 w-1.5 rounded-full bg-accent shrink-0" />}
                 </div>
                 <div className="text-caption text-ink-secondary truncate">
-                  Cloud AI
+                  Powered by Groq
                 </div>
               </div>
             </button>
@@ -170,6 +171,7 @@ export function Transcription() {
                   <p className="mt-1 text-caption text-ink-secondary leading-relaxed">
                     Ultra-fast dictation. Built for quick responses and everyday productivity.
                   </p>
+                  <p className="mt-1.5 font-mono text-[10.5px] text-ink-tertiary">whisper-large-v3-turbo</p>
                 </div>
                 {isTurbo && (
                   <span className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-semibold text-accent">
@@ -199,6 +201,7 @@ export function Transcription() {
                   <p className="mt-1 text-caption text-ink-secondary leading-relaxed">
                     Maximum precision. Excels at technical terms, dense vocabulary, and accents.
                   </p>
+                  <p className="mt-1.5 font-mono text-[10.5px] text-ink-tertiary">whisper-large-v3</p>
                 </div>
                 {!isTurbo && (
                   <span className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-semibold text-accent">

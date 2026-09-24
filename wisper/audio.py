@@ -328,14 +328,65 @@ class AudioCapture:
         out = resample(mono, self._native_sr or self.samplerate, self.samplerate)
         return np.ascontiguousarray(out, dtype=np.float32)
 
+    def preprocess_for_stt(self, pcm, samplerate, noise_suppression=False, input_threshold=0.0):
+        """Optional pre-STT cleanup: silence gate + gentle noise suppression.
+
+        ``pcm`` is float32 mono @ ``samplerate``; returns float32 mono @ same rate.
+        The default path (no suppression, no threshold) returns ``pcm`` unchanged --
+        zero cost, zero accuracy impact. A clip whose RMS is below ``input_threshold``
+        returns an empty array to signal "silence, skip STT".
+        """
+        # Default: nothing requested -> identity, untouched (hot path).
+        if not noise_suppression and input_threshold <= 0:
+            return pcm
+        pcm = np.asarray(pcm, dtype=np.float32)
+        if pcm.size == 0:
+            return pcm
+        # Silence gate: drop clips quieter than the threshold entirely.
+        if input_threshold > 0:
+            rms = float(np.sqrt(np.mean(np.square(pcm))))
+            if rms < input_threshold:
+                return np.zeros(0, dtype=np.float32)
+        if not noise_suppression:
+            return pcm
+        # ponytail: naive numpy amplitude noise-gate -- noise floor from the
+        # quietest ~10% of short-frame RMS, then a soft linear ramp that only
+        # attenuates frames below ~1.75x that floor (speech frames stay at gain
+        # 1.0). Deliberately gentle: over-denoising hurts Whisper. Upgrade to
+        # RNNoise / spectral subtraction if quality demands.
+        frame = max(1, int(samplerate * 0.02))  # ~20 ms frames
+        n = pcm.shape[0]
+        n_frames = int(np.ceil(n / frame))
+        pad = n_frames * frame - n
+        padded = np.concatenate([pcm, np.zeros(pad, dtype=np.float32)]) if pad else pcm
+        env = np.sqrt(np.mean(np.square(padded.reshape(n_frames, frame)), axis=1) + 1e-12)
+        floor = float(np.percentile(env, 10.0))            # noise floor ~ quietest 10%
+        thresh = floor * 1.75                              # ~1.5-2x floor
+        gain = np.ones(n_frames, dtype=np.float32)
+        quiet = env < thresh                               # only frames in the floor band
+        gain[quiet] = 0.15 + 0.85 * (env[quiet] / (thresh + 1e-12))  # soft ramp, ==1 at thresh
+        if n_frames >= 3:                                  # smooth so gain steps don't click
+            gain = np.convolve(gain, np.array([0.25, 0.5, 0.25], np.float32), mode="same")
+        centers = np.arange(n_frames) * frame + frame / 2.0
+        per_sample = np.interp(np.arange(n), centers, gain).astype(np.float32)  # click-free
+        return (pcm * per_sample).astype(np.float32)
+
     def is_recording(self) -> bool:
         return self._recording
 
     def _monitor_callback(self, indata, frames, time_info, status) -> None:
         if indata.size:
-            cur = float(np.abs(indata).max())
-            # Smooth peak with quick decay
-            self._monitor_level = max(cur, self._monitor_level * 0.72)
+            # Remove DC offset to prevent static bias from reading as speech
+            zero_mean = indata - np.mean(indata)
+            cur = float(np.abs(zero_mean).max())
+            # Noise gate: ignore ambient floor / background mic hiss
+            noise_gate = 0.015
+            if cur < noise_gate:
+                cur = 0.0
+            else:
+                cur = min(1.0, (cur - noise_gate) / (0.35 - noise_gate))
+            # Smooth peak with slight decay so 60ms UI polling reliably captures voice peaks
+            self._monitor_level = max(cur, self._monitor_level * 0.82)
         else:
             self._monitor_level = 0.0
 
@@ -396,9 +447,17 @@ class AudioCapture:
     def current_level(self) -> float:
         """Peak absolute amplitude (~0..1) of the most recently captured audio
         block, or monitor level when previewing. For a live UI meter."""
-        if self._recording and self._frames:
-            block = self._frames[-1]
-            return float(np.abs(block).max()) if block.size else 0.0
+        frames = self._frames  # snapshot: stop() rebinds _frames, so this ref stays valid
+        if self._recording and frames:
+            block = frames[-1]
+            if block.size:
+                zero_mean = block - np.mean(block)
+                cur = float(np.abs(zero_mean).max())
+                noise_gate = 0.015
+                if cur < noise_gate:
+                    return 0.0
+                return float(min(1.0, (cur - noise_gate) / (0.35 - noise_gate)))
+            return 0.0
         if self._monitoring:
             return float(self._monitor_level)
         return 0.0

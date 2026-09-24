@@ -27,9 +27,9 @@ log = logging.getLogger("wisper")
 # (doc 06 s7); delete-only never translates, so lang_out only rides along.
 FILLERS = {
     "en": {
-        "always": ["um", "uh", "erm", "er", "ah", "hmm",
-                   "you know", "i mean", "sort of", "kind of"],
-        "boundary": ["like", "actually", "basically"],
+        "always": ["um", "uh", "erm", "er", "ah", "hmm"],
+        "boundary": ["like", "actually", "basically",
+                     "you know", "i mean", "sort of", "kind of"],
     },
     "hi": {
         "always": [],
@@ -43,7 +43,7 @@ FILLERS = {
     "kn": {
         "always": [],
         "boundary": ["andre", "haudu", "matte", "haage", "sari",
-                     "ಅಂ್ರೆ", "ಹೌದು",
+                     "ಅಂದರೆ", "ಹೌದು",
                      "ಮತ್ತೆ", "ಹಾಗೆ",
                      "ಸರಿ"],
     },
@@ -281,17 +281,12 @@ class RuleCleaner:
         t = _finalize(t)                           # 8. capitalization + terminal
 
         # 9. Strip Whisper hallucination echoes (e.g. prompt echoes or trailing video outro tags)
-        t = re.sub(r'(?i)\s*(?:tch|tech|text)\s+terms?\s+(?:are|is|available|not\s+needed)\b.*$', '', t).strip()
-        t = re.sub(r'(?i)\s*(?:thanks?\s+(?:you\s+)?for\s+watching|please\s+subscribe).*$', '', t).strip()
+        t = re.sub(r'(?i)\s*(?:tch|tech|text)\s+terms?\s+(?:are|is|available|not\s+needed)\b', '', t).strip()
+        t = re.sub(r'(?i)\s*(?:thanks?\s+(?:you\s+)?for\s+watching|please\s+subscribe)', '', t).strip()
         if t and t[-1] not in ".?!…" and (t[-1].isalnum() or t[-1] in "\"')]}"):
             t += "."
 
         t = _format_paragraphs_and_lists(t, mode=mode_norm)  # 10. paragraph formatting
-
-        # 11. Context-aware phonetic correction (e.g. Canada -> Kannada in language context)
-        if re.search(r'\b(language|languages|speak|speaking|hindi|telugu|tamil|marathi|india|indian|transcrib)\w*', t, flags=re.IGNORECASE):
-            t = re.sub(r'\bCanada\b', 'Kannada', t)
-            t = re.sub(r'\bcanada\b', 'Kannada', t)
 
         # 12. Repair spoken slips of the tongue and immediate spoken self-corrections
         t = re.sub(r'\bhow I smoke how I spoke\b', 'how I spoke', t, flags=re.IGNORECASE)

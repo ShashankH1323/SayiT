@@ -64,14 +64,13 @@
     overflow-x: hidden;
   }
 
-  /* Opaque light canvas edge-to-edge; no outer radius so the dark backdrop never shows. */
-  html {
+  /* Opaque light canvas edge-to-edge in full mode; 100% transparent in minibar mode. */
+  html:not(.mode-minibar) {
     background: var(--canvas-soft);
   }
 
   body {
     margin: 0;
-    background: var(--canvas-soft);
     color: var(--ink);
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     font-size: var(--fs-body);
@@ -80,6 +79,17 @@
     text-rendering: optimizeLegibility;
     border-radius: 0;
     overflow: hidden; /* fixed frameless window — scroll inner regions, not the shell */
+  }
+
+  body:not(.mode-minibar) {
+    background: var(--canvas-soft);
+  }
+
+  html.mode-minibar,
+  body.mode-minibar,
+  body.mode-minibar #root {
+    background: transparent !important;
+    background-color: transparent !important;
   }
 
   #root {
@@ -136,18 +146,4 @@
   /* Frameless window drag regions (pywebview / Chromium). */
   .drag { -webkit-app-region: drag; app-region: drag; }
   .no-drag { -webkit-app-region: no-drag; app-region: no-drag; }
-
-  @keyframes wave-bounce {
-    0%, 100% {
-      height: 4px;
-      transform: translateY(0);
-    }
-    50% {
-      height: 18px;
-      transform: translateY(-1px);
-    }
-  }
-  .animate-wave-bounce {
-    animation: wave-bounce 0.9s ease-in-out infinite;
-  }
 }

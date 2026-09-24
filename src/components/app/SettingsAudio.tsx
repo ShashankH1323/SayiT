@@ -1,6 +1,6 @@
 /* SettingsAudio — Audio settings tab: input device, local speech model +
  * download, and read-only advanced info. Consumer of useApp() only. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Mic, RefreshCw, Boxes, Download, Check, Loader2, Circle, Server, Cpu, Activity } from "lucide-react";
 import type { ReactNode } from "react";
 import { useApp } from "../../lib/appContext";
@@ -32,11 +32,12 @@ function ReadOnlyRow({ label, value, icon, description }: {
 }
 
 export function SettingsAudio() {
-  const { status, settings, options, devices, models, actions } = useApp();
-  const [downloading, setDownloading] = useState<string | null>(null);
+  const { status, settings, options, devices, models, actions, downloadProgress } = useApp();
   const [refreshingDevices, setRefreshingDevices] = useState(false);
   const [testingMic, setTestingMic] = useState(false);
-  const [noiseSuppression, setNoiseSuppression] = useState(true);
+
+  // Stop any running mic preview if the user navigates away mid-test (idempotent).
+  useEffect(() => () => { actions.stopPreview(); }, []);
 
   if (!settings || !options) {
     return <SettingsShell><SettingsLoading /></SettingsShell>;
@@ -56,7 +57,7 @@ export function SettingsAudio() {
 
   const activeModel = settings.model;
   const activeDownloaded = models[activeModel] === true;
-  const activeBusy = downloading === activeModel;
+  const activeBusy = !!downloadProgress?.active && downloadProgress.name === activeModel;
 
   return (
     <SettingsShell>
@@ -109,7 +110,8 @@ export function SettingsAudio() {
               type="range"
               min={10}
               max={100}
-              defaultValue={70}
+              value={Math.round(settings.input_threshold * 100)}
+              onChange={(e) => actions.setSetting("input_threshold", Number(e.target.value) / 100)}
               className="h-1.5 w-full accent-accent cursor-pointer"
             />
           </div>
@@ -124,17 +126,17 @@ export function SettingsAudio() {
           <button
             type="button"
             role="switch"
-            aria-checked={noiseSuppression}
-            onClick={() => setNoiseSuppression(!noiseSuppression)}
+            aria-checked={settings.noise_suppression}
+            onClick={() => actions.setSetting("noise_suppression", !settings.noise_suppression)}
             className={cn(
               "no-drag relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-pill border-2 border-transparent transition-colors duration-200",
-              noiseSuppression ? "bg-accent" : "bg-ink/15"
+              settings.noise_suppression ? "bg-accent" : "bg-ink/15"
             )}
           >
             <span
               className={cn(
                 "pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-soft-sm transition duration-200",
-                noiseSuppression ? "translate-x-5" : "translate-x-0"
+                settings.noise_suppression ? "translate-x-5" : "translate-x-0"
               )}
             />
           </button>
@@ -200,12 +202,11 @@ export function SettingsAudio() {
               icon={activeBusy
                 ? <Loader2 className="h-4 w-4 animate-spin" />
                 : <Download className="h-4 w-4" />}
-              onClick={async () => {
-                setDownloading(activeModel);
-                try { await actions.downloadModel(activeModel); } finally { setDownloading(null); }
-              }}
+              onClick={() => actions.downloadModel(activeModel)}
             >
-              {activeBusy ? "Downloading…" : "Download"}
+              {activeBusy
+                ? (downloadProgress?.pct != null ? `${Math.round(downloadProgress.pct)}%` : "Downloading…")
+                : "Download"}
             </GlassButton>
           )}
         </SettingRow>
@@ -218,7 +219,7 @@ export function SettingsAudio() {
         <div className="flex flex-wrap gap-1.5 py-3.5">
           {options.local_models.map((m) => {
             const done = models[m] === true;
-            const busy = downloading === m;
+            const busy = !!downloadProgress?.active && downloadProgress.name === m;
             return (
               <span
                 key={m}

@@ -36,7 +36,7 @@ export function GlassButton({
     <button
       type={type}
       className={cn(
-        "inline-flex select-none items-center justify-center rounded-field font-ui font-medium transition-colors",
+        "no-drag inline-flex select-none items-center justify-center rounded-field font-ui font-medium transition-colors cursor-pointer",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2",
         "disabled:pointer-events-none disabled:opacity-50",
         VARIANT[variant],

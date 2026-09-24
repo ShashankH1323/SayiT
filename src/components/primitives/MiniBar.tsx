@@ -1,6 +1,5 @@
-import { Mic, X, Loader2, Check, Maximize2, Square } from "lucide-react";
+import { Mic, Loader2, Check, Square } from "lucide-react";
 import { cn } from "../../lib/utils";
-import { formatHotkeyParts } from "../../lib/hotkeyUtils";
 import { SayItMark } from "./SayItMark";
 
 export type MiniBarState = "idle" | "listening" | "processing" | "pasted";
@@ -17,40 +16,48 @@ export interface MiniBarProps {
   className?: string;
 }
 
-const WAVE_WEIGHTS = [0.4, 0.65, 0.85, 1.0, 0.95, 0.7, 0.85, 1.0, 0.9, 0.6, 0.45, 0.35];
-
+/**
+ * Compact responsive waveform dots/bars for the MiniBar.
+ * In idle: stationary dots.
+ * In listening: stays at resting dot height when silent; animates into waveform directly responding to mic audio level when speaking.
+ */
 export function WaveformDots({
+  state,
   level = 0,
-  animated = false,
-  className,
 }: {
+  state: MiniBarState;
   level?: number;
-  animated?: boolean;
-  className?: string;
 }) {
-  const l = Math.min(1, Math.max(0, level));
-  const dynamicLevel = Math.min(1, l * 2.5);
+  const BARS = 5;
+  const isSpeaking = state === "listening" && level > 0.01;
+  const amplified = Math.min(1, level * 3.5);
 
   return (
-    <div className={cn("flex h-7 items-center justify-center gap-1 px-1", className)} aria-hidden="true">
-      {WAVE_WEIGHTS.map((w, i) => {
-        const minHeight = 4;
-        const maxHeight = 22;
-        const height = animated
-          ? undefined
-          : Math.max(minHeight, minHeight + dynamicLevel * w * (maxHeight - minHeight));
+    <div className="flex h-5 items-center justify-center gap-1 px-1 select-none" aria-hidden="true">
+      {Array.from({ length: BARS }).map((_, i) => {
+        const bell = Math.sin(((i + 1) / (BARS + 1)) * Math.PI);
+        const minHeight = 2.5;
+        const maxHeight = 15;
+        const dynamicHeight = isSpeaking
+          ? minHeight + (maxHeight - minHeight) * bell * amplified * (0.8 + 0.2 * Math.sin(i * 1.8))
+          : minHeight;
 
         return (
           <span
             key={i}
             className={cn(
-              "w-[3.5px] rounded-full bg-teal transition-all duration-75 ease-out",
-              animated && "animate-wave-bounce",
+              "w-[2.5px] rounded-full transition-all duration-75 ease-out",
+              state === "listening"
+                ? isSpeaking
+                  ? "bg-gradient-to-t from-red-500 to-rose-400 shadow-[0_0_6px_rgba(239,68,68,0.5)]"
+                  : "bg-red-400/40"
+                : state === "processing"
+                ? "bg-accent animate-pulse"
+                : "bg-ink/30"
             )}
             style={{
-              height: animated ? undefined : `${height}px`,
-              animationDelay: animated ? `${i * 75}ms` : undefined,
-              opacity: animated ? 0.85 : Math.max(0.45, Math.min(1, 0.45 + dynamicLevel * 0.55)),
+              height: `${Math.round(dynamicHeight)}px`,
+              opacity: isSpeaking ? 1 : state === "listening" ? 0.6 : 0.45,
             }}
           />
         );
@@ -59,18 +66,13 @@ export function WaveformDots({
   );
 }
 
-function DottedIndicator() {
-  return (
-    <span className="flex items-center gap-1" aria-hidden="true">
-      {Array.from({ length: 10 }).map((_, i) => (
-        <span key={i} className="h-1 w-1 rounded-pill bg-ink/20" />
-      ))}
-    </span>
-  );
-}
-
-/** Floating recording HUD matching Final Ui Cards 6-10:
- *  idle -> listening -> processing -> pasted -> idle */
+/**
+ * Half-sized, ultra-compact glassmorphic Mini Bar.
+ * - Reduced to half size (116px width x 28px height)
+ * - Transparent background (no square white background)
+ * - Real-time microphone audio waveform detection on speech
+ * - Dynamic action button: Mic (idle) -> Stop (recording) -> Spinning Loading Logo (processing) -> Idle
+ */
 export function MiniBar({
   state,
   level = 0,
@@ -87,124 +89,76 @@ export function MiniBar({
       role="status"
       aria-live="polite"
       className={cn(
-        "glass-strong relative inline-flex h-14 min-w-[280px] max-w-[360px] items-center gap-3 rounded-pill px-3.5 shadow-soft-lg select-none",
+        "drag pywebview-drag-region relative inline-flex h-7 w-[116px] items-center justify-between rounded-full px-1.5 py-0.5 select-none",
+        "backdrop-blur-xl bg-white/92",
+        "border border-white/80 shadow-[0_2px_10px_rgba(15,23,42,0.12),0_1px_2px_rgba(15,23,42,0.06)]",
         isStandalone && "cursor-default",
         className,
       )}
     >
-      {/* Brand Logo mark on left slot (from Final Ui cards 6-10) */}
-      <div
+      {/* Elevated App Logo Button: compact h-5 w-5, click opens Say It dashboard */}
+      <button
+        type="button"
         onClick={onExpand}
+        onMouseDown={(e) => e.stopPropagation()}
+        title="Open Say It dashboard"
+        aria-label="Open Say It dashboard"
         className={cn(
-          "grid h-9 w-9 shrink-0 place-items-center rounded-full transition-transform",
-          onExpand && "cursor-pointer hover:scale-105 active:scale-95",
+          "group relative grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white",
+          "shadow-[0_1px_3px_rgba(0,0,0,0.1),0_0_0_1px_rgba(0,0,0,0.04)]",
+          "hover:scale-105 active:scale-95 transition-all duration-150 cursor-pointer focus:outline-none"
         )}
-        title={onExpand ? "Click to open full dashboard" : undefined}
       >
-        <SayItMark size={28} />
+        <SayItMark size={14} className="transition-transform duration-150 group-hover:scale-105" />
+      </button>
+
+      {/* Center content: Animated real-time waveform dots responding directly to mic loudness */}
+      <div className="flex min-w-0 flex-1 items-center justify-center">
+        {state === "pasted" ? (
+          <span className="text-[10px] font-semibold text-teal-deep animate-in zoom-in-75 duration-150">
+            Pasted!
+          </span>
+        ) : (
+          <WaveformDots state={state} level={level} />
+        )}
       </div>
 
-      {/* Center content slot morphs smoothly based on state */}
-      <div
-        key={state}
-        className="flex min-w-0 flex-1 items-center animate-in fade-in-0 duration-200"
-      >
+      {/* Dynamic Action Button: Mic -> Stop -> Spinning Loading Logo -> Pasted Check */}
+      <div className="no-drag flex shrink-0 items-center" onMouseDown={(e) => e.stopPropagation()}>
         {state === "idle" && (
-          hotkey ? (
-            <div className="flex items-center gap-1.5 text-caption text-ink-secondary">
-              <span>Press</span>
-              <span className="inline-flex items-center gap-1">
-                {formatHotkeyParts(hotkey).map((part, idx, arr) => (
-                  <span key={idx} className="inline-flex items-center gap-1">
-                    <kbd className="hairline rounded-md bg-canvas-soft px-1.5 py-0.5 font-ui text-[11px] font-semibold text-ink shadow-soft-xs">
-                      {part}
-                    </kbd>
-                    {idx < arr.length - 1 && <span className="text-[10px] text-ink-tertiary">+</span>}
-                  </span>
-                ))}
-              </span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <DottedIndicator />
-              <span className="text-caption text-ink-tertiary">Ready</span>
-            </div>
-          )
-        )}
-
-        {state === "listening" && (
-          <div className="flex items-center gap-2">
-            <WaveformDots level={level} />
-            <span className="text-caption font-semibold text-teal-deep">Listening…</span>
-          </div>
-        )}
-
-        {state === "processing" && (
-          <div className="flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin text-accent" />
-            <span className="text-caption font-medium text-ink-secondary">Transcribing…</span>
-          </div>
-        )}
-
-        {state === "pasted" && (
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="grid h-5 w-5 place-items-center rounded-full bg-teal-soft text-teal-deep">
-              <Check className="h-3 w-3" strokeWidth={2.5} />
-            </span>
-            <span className="text-label font-semibold text-teal-deep">Pasted!</span>
-            {text && <span className="truncate text-caption text-ink-tertiary max-w-[130px]">{text}</span>}
-          </div>
-        )}
-      </div>
-
-      {/* Trailing action affordances: Toggle/Stop button, Cancel, and Expand */}
-      <div className="no-drag flex shrink-0 items-center gap-1.5">
-        {state === "listening" && onToggle && (
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-label="Stop recording"
-            title="Stop recording"
-            className="grid h-8 w-8 place-items-center rounded-full bg-teal text-white shadow-soft-xs hover:bg-teal-deep transition-colors"
-          >
-            <Square className="h-3.5 w-3.5 fill-current" />
-          </button>
-        )}
-
-        {state === "idle" && onToggle && (
           <button
             type="button"
             onClick={onToggle}
             aria-label="Start recording"
             title="Start recording"
-            className="grid h-8 w-8 place-items-center rounded-full bg-accent text-white shadow-soft-xs hover:bg-accent-deep transition-colors"
+            className="grid h-5 w-5 place-items-center rounded-full bg-accent text-white shadow-xs hover:bg-accent-deep active:scale-95 transition-all duration-150 cursor-pointer"
           >
-            <Mic className="h-3.5 w-3.5" />
+            <Mic className="h-2.5 w-2.5" />
           </button>
         )}
 
-        {state === "listening" && onCancel && (
+        {state === "listening" && (
           <button
             type="button"
-            onClick={onCancel}
-            aria-label="Cancel recording"
-            title="Cancel"
-            className="grid h-8 w-8 place-items-center rounded-full bg-ink/5 text-ink-secondary hover:bg-ink/10 transition-colors"
+            onClick={onToggle}
+            aria-label="Stop recording"
+            title="Stop recording"
+            className="grid h-5 w-5 place-items-center rounded-full bg-red-500 text-white shadow-xs hover:bg-red-600 active:scale-95 transition-all duration-150 cursor-pointer animate-pulse"
           >
-            <X className="h-3.5 w-3.5" />
+            <Square className="h-2 w-2 fill-white text-white" />
           </button>
         )}
 
-        {onExpand && (
-          <button
-            type="button"
-            onClick={onExpand}
-            aria-label="Expand to full dashboard"
-            title="Open dashboard"
-            className="grid h-8 w-8 place-items-center rounded-full text-ink-tertiary hover:bg-ink/5 hover:text-ink transition-colors"
-          >
-            <Maximize2 className="h-3.5 w-3.5" />
-          </button>
+        {state === "processing" && (
+          <div className="grid h-5 w-5 place-items-center" title="Processing transcription…">
+            <Loader2 className="h-3 w-3 animate-spin text-accent" />
+          </div>
+        )}
+
+        {state === "pasted" && (
+          <div className="grid h-5 w-5 place-items-center rounded-full bg-teal-soft text-teal-deep shadow-xs animate-in zoom-in-75 duration-150">
+            <Check className="h-2.5 w-2.5 stroke-[2.5]" />
+          </div>
         )}
       </div>
     </div>

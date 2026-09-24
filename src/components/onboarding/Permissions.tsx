@@ -14,55 +14,32 @@ import { SelectField } from "../app/SettingsShell";
 const bareName = (s: string) => s.split("—")[0].trim();
 
 function LiveWaveformVisualizer({ level }: { level: number }) {
-  const [phase, setPhase] = useState(0);
-  const animRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    let currentPhase = 0;
-    let running = true;
-    const animate = () => {
-      if (!running) return;
-      const speed = level > 0.03 ? 0.22 + level * 0.4 : 0.04;
-      currentPhase += speed;
-      setPhase(currentPhase);
-      animRef.current = requestAnimationFrame(animate);
-    };
-    animRef.current = requestAnimationFrame(animate);
-    return () => {
-      running = false;
-      if (animRef.current) cancelAnimationFrame(animRef.current);
-    };
-  }, [level > 0.03]);
-
-  const BARS = 20;
-  const isSpeaking = level > 0.035;
-  const amplified = Math.min(1, Math.max(0, (level - 0.02) * 3.2));
+  const BARS = 18;
+  const isSpeaking = level > 0.01;
+  const amplified = Math.min(1, level * 3.5);
 
   return (
-    <div className="flex h-10 items-center justify-center gap-1.5 px-2" aria-hidden="true">
+    <div className="flex h-11 items-center justify-center gap-1.5 px-2 select-none" aria-hidden="true">
       {Array.from({ length: BARS }).map((_, i) => {
         const bell = Math.sin(((i + 1) / (BARS + 1)) * Math.PI);
-        const wave = 0.5 + 0.5 * (
-          0.6 * Math.sin(phase + i * 0.5) +
-          0.4 * Math.cos(phase * 1.3 - i * 0.35)
-        );
-
         const minH = 4;
-        const maxH = 30;
-        const h = isSpeaking
-          ? Math.max(minH, minH + (maxH - minH) * bell * amplified * (0.35 + 0.65 * wave))
-          : Math.max(minH, minH + 2.5 * bell * (0.5 + 0.5 * Math.sin(phase + i * 0.3)));
+        const maxH = 34;
+        // Calm resting height (minH) when silent; dynamic waveform height only when speaking
+        const dynamicH = isSpeaking
+          ? minH + (maxH - minH) * bell * amplified * (0.75 + 0.25 * Math.sin(i * 1.5))
+          : minH;
 
         return (
           <span
             key={i}
             className={cn(
-              "w-[3.5px] rounded-full transition-all duration-75 ease-out",
-              isSpeaking ? "bg-teal shadow-[0_0_8px_rgba(16,185,129,0.4)]" : "bg-ink/20"
+              "w-[3.5px] rounded-full transition-[height,background-color,opacity] duration-75 ease-out",
+              isSpeaking
+                ? "bg-gradient-to-t from-teal to-teal-deep shadow-[0_0_8px_rgba(16,185,129,0.55)] opacity-95"
+                : "bg-ink/15 opacity-40"
             )}
             style={{
-              height: `${Math.round(h)}px`,
-              opacity: isSpeaking ? 0.95 : 0.45,
+              height: `${Math.round(dynamicH)}px`,
             }}
           />
         );
@@ -102,7 +79,7 @@ export function Permissions() {
     }
   }
 
-  const isSpeaking = status.level > 0.035;
+  const isSpeaking = status.level > 0.01;
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-canvas-soft select-none">
@@ -110,12 +87,18 @@ export function Permissions() {
 
       <main className="flex flex-1 flex-col items-center justify-center gap-5 px-8 text-center duration-500 animate-in fade-in-0 slide-in-from-bottom-2">
         <div className="relative flex items-center justify-center">
-          <div aria-hidden className="absolute h-32 w-32 rounded-full bg-accent-soft opacity-70 blur-2xl" />
+          <div
+            aria-hidden
+            className={cn(
+              "absolute h-32 w-32 rounded-full transition-all duration-300 blur-2xl",
+              isSpeaking ? "bg-teal-soft opacity-90 scale-125" : "bg-accent-soft opacity-70 scale-100"
+            )}
+          />
           <IconOrb
-            icon={<Mic size={32} strokeWidth={1.75} />}
+            icon={<Mic size={32} strokeWidth={1.75} className={cn("transition-transform duration-200", isSpeaking && "scale-110")} />}
             tone={isSpeaking ? "teal" : "accent"}
             size={88}
-            className="relative transition-colors duration-300"
+            className={cn("relative transition-all duration-200", isSpeaking && "shadow-[0_0_24px_rgba(16,185,129,0.4)] scale-105")}
           />
         </div>
 
@@ -191,7 +174,7 @@ export function Permissions() {
         >
           Back
         </GlassButton>
-        <PaginationDots count={3} active={1} className="mt-2" />
+        <PaginationDots count={4} active={1} className="mt-2" />
       </footer>
     </div>
   );

@@ -2,7 +2,7 @@
  * (wisper/webui.py). Uses window.pywebview.api when present, else a built-in
  * mock ported from wisper/web/app.js so the UI fully previews in a browser. */
 import type {
-  Status, Settings, Options, DeviceInfo, HistoryItem, ModelsStatus, ModelInfo,
+  Status, Settings, Options, DeviceInfo, HistoryItem, ModelsStatus, DownloadProgress,
 } from "./types";
 
 declare global {
@@ -31,6 +31,8 @@ const mockApi = (() => {
     cleanup_mode: "light", stt_provider: "groq",
     groq_model: "whisper-large-v3-turbo", sound_effects: true,
     history_size: 50, paste_mode: "auto",
+    noise_suppression: false, input_threshold: 0,
+    launch_at_login: false, show_minibar: true,
   };
   const mstat: ModelsStatus = {
     tiny: true, base: true, small: true, medium: false,
@@ -79,7 +81,7 @@ const mockApi = (() => {
     get_options(): Promise<Options> {
       return delay({
         cleanup_modes: ["light", "casual", "formal", "structured", "raw"],
-        paste_modes: ["auto", "ctrl_v", "ctrl_shift_v"],
+        paste_modes: ["auto", "ctrl_v", "ctrl_shift_v", "off"],
         stt_providers: ["groq", "local"],
         groq_models: ["whisper-large-v3-turbo", "whisper-large-v3"],
         languages: ["auto", "en", "es", "fr", "de", "hi", "kn", "te", "ta", "mr", "bn", "gu", "ja", "zh"],
@@ -89,6 +91,7 @@ const mockApi = (() => {
     set_setting(key: string, value: unknown): Promise<null> { (st as any)[key] = value; return delay(null); },
     models_status(): Promise<ModelsStatus> { return delay(copy(mstat)); },
     download_model(name: string): Promise<ModelsStatus> { mstat[name] = true; return delay(copy(mstat), 1500); },
+    download_progress(): Promise<DownloadProgress> { return delay({ active: false, name: null, done: true, error: null, pct: 100 }); },
     history_load(size?: number): Promise<HistoryItem[]> { return delay(hist.slice(0, size || 50)); },
     history_delete(ts: string, text: string): Promise<null> {
       hist = hist.filter((r) => !(r.ts === ts && r.text === text)); return delay(null);
@@ -120,7 +123,8 @@ export const api = {
   get_options: (): Promise<Options> => Promise.resolve(backend().get_options()),
   set_setting: (key: string, value: unknown): Promise<null> => Promise.resolve(backend().set_setting(key, value)),
   models_status: (): Promise<ModelsStatus> => Promise.resolve(backend().models_status()),
-  download_model: (name: string): Promise<ModelInfo | ModelsStatus> => Promise.resolve(backend().download_model(name)),
+  download_model: (name: string): Promise<ModelsStatus> => Promise.resolve(backend().download_model(name)),
+  download_progress: (): Promise<DownloadProgress> => Promise.resolve(backend().download_progress ? backend().download_progress() : { active: false, name: null, done: true, error: null, pct: 100 }),
   history_load: (size?: number): Promise<HistoryItem[]> => Promise.resolve(backend().history_load(size)),
   history_delete: (ts: string, text: string): Promise<null> => Promise.resolve(backend().history_delete(ts, text)),
   history_clear: (): Promise<null> => Promise.resolve(backend().history_clear()),

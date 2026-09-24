@@ -66,10 +66,24 @@ export default {
         pill: "9999px",
       },
       boxShadow: {
+        "soft-xs": "0 1px 2px rgba(70,80,160,0.08)",
+        xs: "0 1px 2px rgba(70,80,160,0.08)", // alias so `shadow-xs` resolves (Tailwind v3 has none)
         "soft-sm": "0 4px 14px rgba(70,80,160,0.10)",
         soft: "0 8px 24px rgba(70,80,160,0.12)",
         "soft-lg": "0 16px 40px rgba(70,80,160,0.14)",
         glass: "0 8px 30px rgba(70,80,160,0.12), inset 0 1px 0 rgba(255,255,255,0.6)",
+      },
+      // Subtle drift for SoftBlobBackground blobs (gated by motion-safe: in the component).
+      keyframes: {
+        blobDrift: {
+          "0%,100%": { transform: "translate(0,0) scale(1)" },
+          "33%": { transform: "translate(3%,-4%) scale(1.05)" },
+          "66%": { transform: "translate(-3%,3%) scale(0.97)" },
+        },
+      },
+      animation: {
+        "blob-drift": "blobDrift 18s ease-in-out infinite",
+        "blob-drift-slow": "blobDrift 26s ease-in-out infinite",
       },
     },
   },

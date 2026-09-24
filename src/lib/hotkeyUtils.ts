@@ -28,8 +28,8 @@ export function normalizeHotkey(raw: string): string {
   let s = raw.trim().toLowerCase();
 
   // Normalize spaces and multi-word names
-  s = s.replace(/mouse\s*4|side\s*(button\s*)?1|x1|back/g, "mouse4");
-  s = s.replace(/mouse\s*5|side\s*(button\s*)?2|x2|forward/g, "mouse5");
+  s = s.replace(/mouse\s*4|side\s*(button\s*)?1|x1|\bback\b/g, "mouse4");
+  s = s.replace(/mouse\s*5|side\s*(button\s*)?2|x2|\bforward\b/g, "mouse5");
   s = s.replace(/mouse\s*3|middle\s*click/g, "middle");
   s = s.replace(/mouse\s*2|right\s*click/g, "right");
 

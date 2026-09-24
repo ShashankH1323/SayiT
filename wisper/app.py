@@ -119,6 +119,14 @@ class WisperApp:
             if self._cancel_requested.is_set():
                 self.state = State.IDLE
                 return
+            # Pre-STT seam: optional denoise + silence-gate (defaults are no-ops).
+            pcm = self.audio.preprocess_for_stt(
+                pcm, self.config.samplerate,
+                self.config.noise_suppression, self.config.input_threshold,
+            )
+            if pcm is None or getattr(pcm, "size", len(pcm)) == 0:
+                self.state = State.IDLE  # gated as silence: skip STT/clean/paste
+                return
             try:
                 raw = self.stt.transcribe(
                     pcm,
@@ -144,6 +152,9 @@ class WisperApp:
             # if the paste step later fails, so the user never loses their words.
             history.record(cleaned, self.config.history_size)
             self.state = State.PASTING
+            if self._cancel_requested.is_set():
+                self.state = State.IDLE
+                return
             self.paste(cleaned, self.config.paste_mode)
             if getattr(self.config, "sound_effects", True):
                 sound.play_paste()

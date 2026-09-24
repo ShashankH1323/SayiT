@@ -1,15 +1,46 @@
 import { useEffect, useState, useRef } from "react";
-import { Mic, AlertTriangle, Copy, Check, ArrowRight, RotateCcw } from "lucide-react";
+import { Mic, Square, Loader2, AlertTriangle, Copy, Check, ArrowRight, RotateCcw } from "lucide-react";
 import { useApp } from "../../lib/appContext";
 import { cn } from "../../lib/utils";
-import { MiniBar } from "../primitives/MiniBar";
-import { IconOrb } from "../primitives/IconOrb";
 import { GlassButton } from "../primitives/GlassButton";
+import { IconOrb } from "../primitives/IconOrb";
 import { formatHotkeyDisplay, matchesHotkey, parseMouseEvent, normalizeHotkey } from "../../lib/hotkeyUtils";
 import type { HistoryItem } from "../../lib/types";
 import ideasFlourish from "../../assets/handwritten_ideas_flow_better_spoken.png";
 
 type Phase = "idle" | "recording" | "processing" | "pasted";
+
+function HomeSpeechWaveform({ level }: { level: number }) {
+  const BARS = 21;
+  const isSpeaking = level > 0.01;
+  const amplified = Math.min(1, level * 3.5);
+
+  return (
+    <div className="flex h-10 min-w-[220px] items-center justify-center gap-1.5 rounded-full glass px-5 py-2 shadow-soft-sm select-none animate-in fade-in-0 zoom-in-95 duration-200">
+      {Array.from({ length: BARS }).map((_, i) => {
+        const bell = Math.sin(((i + 1) / (BARS + 1)) * Math.PI);
+        const minH = 4;
+        const maxH = 26;
+        const dynamicH = isSpeaking
+          ? minH + (maxH - minH) * bell * amplified * (0.8 + 0.2 * Math.sin(i * 1.6))
+          : minH;
+
+        return (
+          <span
+            key={i}
+            className={cn(
+              "w-[3px] rounded-full transition-[height,background-color,opacity] duration-75 ease-out",
+              isSpeaking
+                ? "bg-gradient-to-t from-red-500 to-rose-400 shadow-[0_0_8px_rgba(239,68,68,0.5)] opacity-95"
+                : "bg-red-400/30 opacity-40"
+            )}
+            style={{ height: `${Math.round(dynamicH)}px` }}
+          />
+        );
+      })}
+    </div>
+  );
+}
 
 const COPY: Record<Phase, { title: string; sub: string }> = {
   idle: { title: "Ready when you are", sub: "Press your hotkey and speak — your words land at your cursor." },
@@ -174,36 +205,50 @@ export function Home() {
           <p className="mx-auto max-w-xs text-body text-ink-secondary">{sub}</p>
         </div>
 
-        {/* Big tactile mic button */}
+        {/* Big tactile interactive state button */}
         <button
           type="button"
           onClick={actions.toggle}
           disabled={processing}
           aria-label={listening ? "Stop recording" : "Start recording"}
           className={cn(
-            "no-drag relative rounded-full transition-transform",
+            "no-drag relative flex h-28 w-28 items-center justify-center rounded-full transition-all duration-300 cursor-pointer",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-canvas-soft",
-            processing ? "cursor-default opacity-90" : "hover:scale-[1.03] active:scale-95",
+            listening
+              ? "bg-gradient-to-tr from-red-500 to-rose-600 shadow-[0_0_36px_rgba(239,68,68,0.55)] scale-105 animate-pulse"
+              : processing
+              ? "bg-accent/90 shadow-soft-lg cursor-wait opacity-90"
+              : phase === "pasted"
+              ? "bg-gradient-to-tr from-teal to-teal-deep shadow-[0_0_28px_rgba(16,185,129,0.45)] scale-105"
+              : "bg-gradient-to-tr from-accent to-accent-deep shadow-soft-lg hover:scale-105 active:scale-95 text-white"
           )}
         >
-          <IconOrb
-            icon={<Mic className="h-10 w-10 text-white" strokeWidth={2} aria-hidden="true" />}
-            tone={listening ? "teal" : "accent"}
-            size={112}
-            className="relative shadow-soft-lg transition-all duration-300"
-          />
+          {listening ? (
+            <Square className="h-10 w-10 fill-white text-white drop-shadow-md" />
+          ) : processing ? (
+            <Loader2 className="h-12 w-12 text-white animate-spin drop-shadow-md" />
+          ) : phase === "pasted" ? (
+            <Check className="h-12 w-12 text-white stroke-[2.5] drop-shadow-md" />
+          ) : (
+            <Mic className="h-12 w-12 text-white drop-shadow-md" strokeWidth={2.2} />
+          )}
         </button>
 
-        {/* MiniBar status HUD */}
-        {pastedToast ? (
-          <MiniBar state="pasted" text={pastedToast} />
-        ) : listening ? (
-          <MiniBar state="listening" level={status.level} onToggle={actions.toggle} onCancel={actions.cancel} />
+        {/* Dynamic status waveform bar (shown only during active recording/transcription) */}
+        {listening ? (
+          <HomeSpeechWaveform level={status.level} />
         ) : processing ? (
-          <MiniBar state="processing" />
-        ) : (
-          <MiniBar state="idle" hotkey={hotkey} onToggle={actions.toggle} />
-        )}
+          <div className="flex h-10 items-center justify-center gap-2 rounded-full glass px-5 py-2 shadow-soft-sm text-caption text-ink-secondary animate-in fade-in-0 duration-200">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
+            <span className="font-medium">Transcribing speech…</span>
+          </div>
+        ) : pastedToast ? (
+          <div className="flex h-10 items-center justify-center gap-2 rounded-full bg-teal-soft border border-teal/20 px-5 py-2 text-caption font-semibold text-teal-deep shadow-soft-xs animate-in zoom-in-95 duration-200">
+            <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+            <span>Pasted!</span>
+            <span className="max-w-[120px] truncate font-normal text-teal-deep/80">"{pastedToast}"</span>
+          </div>
+        ) : null}
       </div>
 
       {/* Redesigned Bottom Bar: Left: Ready status | Right: Single Recent History Card with Copy */}

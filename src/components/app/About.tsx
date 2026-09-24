@@ -72,8 +72,6 @@ export function About() {
 
             <a
               href="mailto:support@sayit.app?subject=Say%20It%20Feedback"
-              target="_blank"
-              rel="noreferrer"
               className="flex w-full items-center justify-between rounded-card border border-hairline bg-white/80 backdrop-blur-md p-3.5 shadow-soft-xs hover:border-accent/30 hover:bg-white hover:shadow-soft-sm transition-all"
             >
               <div className="flex items-center gap-3">

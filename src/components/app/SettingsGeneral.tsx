@@ -119,24 +119,6 @@ function HotkeyButton({ value }: { value: string }) {
 
 export function SettingsGeneral() {
   const { settings, options, actions } = useApp();
-  const [launchAtLogin, setLaunchAtLogin] = useState(() => {
-    try { return localStorage.getItem("say-it-launch-login") === "1"; } catch { return false; }
-  });
-  const [showMiniBar, setShowMiniBar] = useState(() => {
-    try { return localStorage.getItem("say-it-show-minibar") !== "0"; } catch { return true; }
-  });
-
-  const toggleLaunchAtLogin = () => {
-    const next = !launchAtLogin;
-    setLaunchAtLogin(next);
-    try { localStorage.setItem("say-it-launch-login", next ? "1" : "0"); } catch {}
-  };
-
-  const toggleShowMiniBar = () => {
-    const next = !showMiniBar;
-    setShowMiniBar(next);
-    try { localStorage.setItem("say-it-show-minibar", next ? "1" : "0"); } catch {}
-  };
 
   const isAutoPaste = settings?.paste_mode !== "off";
 
@@ -154,8 +136,8 @@ export function SettingsGeneral() {
             >
               <Toggle
                 label="Launch at login"
-                checked={launchAtLogin}
-                onChange={toggleLaunchAtLogin}
+                checked={settings.launch_at_login}
+                onChange={() => actions.setSetting("launch_at_login", !settings.launch_at_login)}
               />
             </SettingRow>
 
@@ -166,8 +148,8 @@ export function SettingsGeneral() {
             >
               <Toggle
                 label="Show mini bar"
-                checked={showMiniBar}
-                onChange={toggleShowMiniBar}
+                checked={settings.show_minibar}
+                onChange={() => actions.setSetting("show_minibar", !settings.show_minibar)}
               />
             </SettingRow>
 
