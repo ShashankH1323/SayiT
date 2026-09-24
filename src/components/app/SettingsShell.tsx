@@ -117,6 +117,7 @@ export function SettingsLoading() {
 /* ---- label helpers (raw option codes -> human text) ---- */
 const LANGS: Record<string, string> = {
   auto: "Auto-detect", en: "English", es: "Spanish", fr: "French", de: "German",
+  it: "Italian", pt: "Portuguese",
   hi: "Hindi", kn: "Kannada", te: "Telugu", ta: "Tamil", mr: "Marathi",
   bn: "Bengali", gu: "Gujarati", ja: "Japanese", zh: "Chinese",
 };

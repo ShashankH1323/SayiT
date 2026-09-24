@@ -37,7 +37,7 @@ _DEFAULT_PATH = get_config_path()
 
 @dataclass
 class Config:
-    hotkey: str = "ctrl+alt+space"      # `keyboard` lib format
+    hotkey: str = "ctrl+space"          # `keyboard` lib format (matches shipped config.json + UI default)
     input_device: int | str | None = None  # mic name substring (stable) or legacy index; None = auto
     samplerate: int = 16000             # target rate fed to STT
     model: str = "large-v3-turbo"       # faster-whisper model name

@@ -4,7 +4,7 @@ import { useApp } from "../../lib/appContext";
 import { cn } from "../../lib/utils";
 import { GlassButton } from "../primitives/GlassButton";
 import { IconOrb } from "../primitives/IconOrb";
-import { formatHotkeyDisplay, matchesHotkey, parseMouseEvent, normalizeHotkey } from "../../lib/hotkeyUtils";
+import { formatHotkeyDisplay } from "../../lib/hotkeyUtils";
 import type { HistoryItem } from "../../lib/types";
 import ideasFlourish from "../../assets/handwritten_ideas_flow_better_spoken.png";
 
@@ -79,39 +79,11 @@ export function Home() {
     return () => { alive = false; };
   }, [status.last_text, pastedToast, actions]);
 
-  // Listen for the hotkey inside the window when focused
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
-        return;
-      }
-      if (matchesHotkey(e, hotkey)) {
-        e.preventDefault();
-        if (settings?.stt_provider === "none") { actions.navigate("transcription"); return; }
-        actions.toggle();
-      }
-    };
-
-    const handleMouseDown = (e: MouseEvent) => {
-      const mouseHot = parseMouseEvent(e);
-      if (mouseHot && normalizeHotkey(mouseHot) === normalizeHotkey(hotkey)) {
-        e.preventDefault();
-        if (settings?.stt_provider === "none") { actions.navigate("transcription"); return; }
-        actions.toggle();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("mousedown", handleMouseDown);
-    window.addEventListener("auxclick", handleMouseDown);
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("mousedown", handleMouseDown);
-      window.removeEventListener("auxclick", handleMouseDown);
-    };
-  }, [hotkey, actions, settings]);
+  // Hotkey activation is handled globally by the Python HotkeyListener (wisper/app.py),
+  // which fires on the same keypress even when this window is focused (system-wide OS
+  // hook). A duplicate in-window key/mouse handler used to live here and double-fired
+  // toggle() (start immediately followed by stop) whenever the app was focused. Removed —
+  // click the mic button to dictate from inside the app; the global hotkey does the rest.
 
   const handleCopyRecent = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -305,9 +277,12 @@ export function Home() {
         {/* Right: Rectangular Last Recent History Card */}
         {recentItem ? (
           <div
+            role="button"
+            tabIndex={0}
             onClick={() => actions.navigate("history")}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); actions.navigate("history"); } }}
             title="Click to view all in History"
-            className="group flex items-center gap-3 rounded-card border border-hairline bg-white/80 backdrop-blur-md px-3 py-1.5 shadow-soft-xs hover:border-accent/30 hover:bg-white hover:shadow-soft-sm transition-all cursor-pointer max-w-sm"
+            className="group flex items-center gap-3 rounded-card border border-hairline bg-white/80 backdrop-blur-md px-3 py-1.5 shadow-soft-xs hover:border-accent/30 hover:bg-white hover:shadow-soft-sm transition-all cursor-pointer max-w-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <div className="min-w-0 flex-1 text-left">
               <div className="flex items-center gap-1.5">

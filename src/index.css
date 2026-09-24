@@ -5,6 +5,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Accessibility: honor the OS "reduce motion" setting. Neutralizes the pulse/spin/
+   slide-in/confetti motion across the app for users who opt out of animation. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @layer base {
   :root {
     /* ---- Brand tokens (source of truth; tailwind.config.js mirrors the hexes) ---- */
