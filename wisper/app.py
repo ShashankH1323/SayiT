@@ -9,10 +9,10 @@ import threading
 import os
 from wisper.config import Config
 from wisper.audio import AudioCapture
-from wisper.stt import FasterWhisperBackend, GroqWhisperBackend, ResilientGroqSTTBackend
+from wisper.stt import FasterWhisperBackend, GroqWhisperBackend, NullBackend
 from wisper.clean import RuleCleaner
 from wisper.inject import paste_text
-from wisper import history, sound
+from wisper import history, sound, models
 
 log = logging.getLogger("wisper")
 
@@ -38,6 +38,7 @@ class WisperApp:
     def __init__(self, config: Config, *, audio=None, stt=None, cleaner=None, paste=None):
         self.config = config
         self.audio = audio or AudioCapture(config.samplerate, config.input_device)
+        self._stt_key = self._stt_config_key()  # config tuple the live stt was built from
         self.stt = stt or self._build_stt()
         self.cleaner = cleaner or RuleCleaner()
         self.paste = paste or paste_text
@@ -127,6 +128,11 @@ class WisperApp:
             if pcm is None or getattr(pcm, "size", len(pcm)) == 0:
                 self.state = State.IDLE  # gated as silence: skip STT/clean/paste
                 return
+            # Rebuild the STT backend if the engine selection changed since it was
+            # built, so an in-app engine switch takes effect without a restart.
+            # Unchanged config keeps the existing backend (and any loaded local model).
+            if self._stt_config_key() != self._stt_key:
+                self.stt = self._build_stt()
             try:
                 raw = self.stt.transcribe(
                     pcm,
@@ -141,7 +147,11 @@ class WisperApp:
                 return
             self.state = State.CLEANING
             cleanup_mode = self.config.cleanup_mode
-            if getattr(self.config, "stt_provider", "groq") == "local" and cleanup_mode in ("light", "rule"):
+            # Groq-requiring cleanup modes (light/casual/formal/structured) reach the
+            # network via reform.py. Only take that path when actually on cloud
+            # (groq + key); otherwise clean locally with the delete-only rule pass.
+            on_cloud = self.config.stt_provider == "groq" and self._has_groq_key()
+            if not on_cloud and cleanup_mode in ("light", "casual", "formal", "structured"):
                 cleanup_mode = "rule"
             cleaned = self.cleaner.clean(raw, cleanup_mode, self.config.output_language)
             if self._cancel_requested.is_set() or not cleaned:
@@ -221,18 +231,39 @@ class WisperApp:
                 except Exception:
                     log.exception("[wisper] could not restore previous hotkey")
 
+    @staticmethod
+    def _has_groq_key() -> bool:
+        return bool(os.environ.get("GROQ_API_KEY", "").strip())
+
+    def _stt_config_key(self) -> tuple:
+        """The config tuple _build_stt selects on; _process rebuilds when it changes."""
+        c = self.config
+        return (c.stt_provider, c.model, c.device, c.compute_type, c.groq_model, self._has_groq_key())
+
     def _build_stt(self):
-        """Construct the STT backend based on config.stt_provider and key availability."""
-        has_groq_key = bool(os.environ.get("GROQ_API_KEY", "").strip())
-        local_backend = FasterWhisperBackend(
-            self.config.model, self.config.device, self.config.compute_type
-        )
-        provider = getattr(self.config, "stt_provider", "groq")
-        if provider == "groq" and has_groq_key:
-            groq_model = getattr(self.config, "groq_model", "whisper-large-v3-turbo")
-            groq_backend = GroqWhisperBackend(model=groq_model)
-            return ResilientGroqSTTBackend(groq_backend, local_backend)
-        return local_backend
+        """Build the STT backend from config.stt_provider — engines are strictly opt-in.
+        Nothing loads here (FasterWhisperBackend is lazy), no GPU, no network:
+          groq  -> cloud GroqWhisperBackend if a key is present, else NullBackend
+                   (no silent local fallback).
+          local -> FasterWhisperBackend only if the model is already downloaded,
+                   else NullBackend (never triggers a download / GPU spike).
+          none / unknown -> NullBackend.
+        """
+        provider = self.config.stt_provider
+        if provider == "groq":
+            if self._has_groq_key():
+                groq_model = getattr(self.config, "groq_model", "whisper-large-v3-turbo")
+                backend = GroqWhisperBackend(model=groq_model)
+            else:
+                backend = NullBackend()
+        elif provider == "local" and models.is_downloaded(self.config.model):
+            backend = FasterWhisperBackend(
+                self.config.model, self.config.device, self.config.compute_type
+            )
+        else:
+            backend = NullBackend()
+        self._stt_key = self._stt_config_key()  # remember what we built from
+        return backend
 
     def set_stt_provider(self, provider: str) -> None:
         """Switch between 'groq' and 'local' STT providers."""

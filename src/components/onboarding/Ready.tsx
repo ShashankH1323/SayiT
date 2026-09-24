@@ -9,6 +9,7 @@ import { formatHotkeyDisplay } from "../../lib/hotkeyUtils";
 export function Ready() {
   const { settings, actions } = useApp();
   const hotkey = settings?.hotkey ? formatHotkeyDisplay(settings.hotkey) : "Ctrl + Space";
+  const noEngine = settings?.stt_provider === "none";
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-canvas-soft select-none">
@@ -26,9 +27,13 @@ export function Ready() {
         </div>
 
         <div className="flex flex-col items-center gap-2">
-          <h1 className="text-display font-display font-bold text-ink">You're all set!</h1>
+          <h1 className="text-display font-display font-bold text-ink">{noEngine ? "Almost there" : "You're all set!"}</h1>
           <p className="max-w-xs text-body text-ink-secondary leading-relaxed">
-            Say It is ready to transcribe. Use <strong className="text-ink font-semibold">{hotkey}</strong> and start speaking.
+            {noEngine ? (
+              <>Pick a speech engine in <strong className="text-ink font-semibold">Transcription</strong> to start dictating.</>
+            ) : (
+              <>Say It is ready to transcribe. Use <strong className="text-ink font-semibold">{hotkey}</strong> and start speaking.</>
+            )}
           </p>
         </div>
       </main>

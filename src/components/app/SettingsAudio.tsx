@@ -168,6 +168,12 @@ export function SettingsAudio() {
       </SettingsSection>
 
       <SettingsSection title="Speech model">
+        {settings.stt_provider === "local" && !activeDownloaded && (
+          <div className="flex items-center gap-2 rounded-field border border-accent/20 bg-accent-soft px-3 py-2 text-caption font-medium text-accent">
+            <Download className="h-3.5 w-3.5 shrink-0" />
+            Download a model to use On-Device speech.
+          </div>
+        )}
         <SettingRow label="Local speech model" description="Whisper model used when the provider is Local." icon={<Boxes />}>
           <div className="flex items-center gap-2">
             <SelectField

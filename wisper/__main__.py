@@ -9,14 +9,39 @@ the functional core; for the native path it mirrors just the hotkey startup
 that run() does, then hands off to webui.launch().
 """
 
+import logging
 import os
 import sys
+from pathlib import Path
 
 from wisper.app import WisperApp
 from wisper.config import Config
 
 
+def _setup_logging() -> None:
+    """Give frozen (--noconsole) builds a file to leave tracebacks in.
+
+    Without a handler, `--noconsole` crashes vanish silently. Mirrors the
+    frozen/dev path split used in config.py/history.py.
+    """
+    try:
+        logger = logging.getLogger("wisper")
+        if logger.handlers:  # main() may run twice; don't stack handlers
+            return
+        if getattr(sys, "frozen", False):
+            log_path = Path(sys.executable).parent / "wisper.log"
+        else:
+            log_path = Path(__file__).resolve().parent.parent / "wisper.log"
+        handler = logging.FileHandler(log_path, encoding="utf-8")
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+    except Exception:
+        pass  # logging setup must never crash startup
+
+
 def main() -> None:
+    _setup_logging()
     cfg = Config.load()
     app = WisperApp(cfg)
 

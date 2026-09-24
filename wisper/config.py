@@ -46,7 +46,7 @@ class Config:
     language: str | None = "en"         # spoken language; None = auto-detect
     output_language: str = "en"         # desired output language
     cleanup_mode: str = "light"         # light | casual | formal | structured | raw
-    stt_provider: str = "groq"          # groq | local
+    stt_provider: str = "none"          # none | groq | local  (none = opt-in required)
     groq_model: str = "whisper-large-v3-turbo" # whisper-large-v3-turbo | whisper-large-v3
     sound_effects: bool = True          # warm audio cues on start/stop/paste
     history_size: int = 50
@@ -55,6 +55,7 @@ class Config:
     input_threshold: float = 0.0        # 0..1 silence-gate floor (0 = no gating)
     launch_at_login: bool = False       # start with the OS session
     show_minibar: bool = True           # floating recording mini-bar
+    config_version: int = 2             # schema version; load() migrates pre-v2 -> opt-in
 
     @classmethod
     def load(cls, path: str | Path = _DEFAULT_PATH) -> "Config":
@@ -84,7 +85,39 @@ class Config:
         iv = overrides.get("input_device")
         if isinstance(iv, int) and not isinstance(iv, bool):
             overrides["input_device"] = str(iv)  # legacy int index -> string contract
-        return cls(**overrides)
+        cfg = cls(**overrides)
+        # one-time opt-in migration: pre-v2 configs auto-ran an engine; force an explicit choice
+        ver = data.get("config_version")
+        if not isinstance(ver, int) or ver < 2:
+            cfg.stt_provider = "none"        # only field flipped; all other saved keys kept
+            cfg.config_version = 2
+            try:
+                cfg.save(p)                  # persist so the migration never re-runs
+            except OSError as e:
+                log.warning("config %s unwritable (%s); migration not persisted", p, e)
+        return cfg
 
     def save(self, path: str | Path = _DEFAULT_PATH) -> None:
         Path(path).write_text(json.dumps(asdict(self), indent=2) + "\n", encoding="utf-8")
+
+
+if __name__ == "__main__":  # migration self-check (stdlib only, no framework)
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as _d:
+        _p = Path(_d) / "config.json"
+        # v1-style on-disk config: no config_version, engine was auto-on (groq)
+        _p.write_text(json.dumps({
+            "stt_provider": "groq", "hotkey": "ctrl+alt+x",
+            "input_device": 3, "model": "small", "history_size": 7,
+        }), encoding="utf-8")
+        _c = Config.load(_p)
+        assert _c.stt_provider == "none", _c.stt_provider          # flipped to opt-in
+        assert _c.config_version == 2, _c.config_version           # version bumped
+        assert _c.hotkey == "ctrl+alt+x"                           # other keys preserved
+        assert _c.input_device == "3"                              # legacy int coerced, kept
+        assert _c.model == "small"
+        assert _c.history_size == 7
+        _again = Config.load(_p)                                   # v2 on disk now
+        assert _again.config_version == 2 and _again.stt_provider == "none"  # no re-run
+        print("config migration self-check PASSED")

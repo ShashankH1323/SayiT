@@ -69,7 +69,8 @@ export function Transcription() {
 
   if (!settings) return null;
 
-  const isCloud = settings.stt_provider !== "local";
+  const isCloud = settings.stt_provider === "groq";
+  const isLocal = settings.stt_provider === "local";
   const isTurbo = settings.groq_model === "whisper-large-v3-turbo";
 
   return (
@@ -124,21 +125,21 @@ export function Transcription() {
               onClick={() => actions.setSetting("stt_provider", "local")}
               className={cn(
                 "flex items-center gap-2.5 rounded-card border p-3 text-left transition-all overflow-hidden",
-                !isCloud
+                isLocal
                   ? "border-teal/30 bg-white shadow-soft-sm ring-1 ring-teal/20"
                   : "border-hairline bg-white/50 hover:bg-white text-ink-secondary",
               )}
             >
               <div className={cn(
                 "grid h-8 w-8 shrink-0 place-items-center rounded-field",
-                !isCloud ? "bg-teal-soft text-teal-deep" : "bg-ink/5 text-ink-tertiary"
+                isLocal ? "bg-teal-soft text-teal-deep" : "bg-ink/5 text-ink-tertiary"
               )}>
                 <Shield className="h-4 w-4" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 font-medium text-ink text-label truncate">
                   On-Device Engine
-                  {!isCloud && <span className="h-1.5 w-1.5 rounded-full bg-teal shrink-0" />}
+                  {isLocal && <span className="h-1.5 w-1.5 rounded-full bg-teal shrink-0" />}
                 </div>
                 <div className="text-caption text-teal-deep font-medium truncate">
                   100% private
@@ -146,6 +147,21 @@ export function Transcription() {
               </div>
             </button>
           </div>
+
+          {/* Requirement hint per selected engine */}
+          {isCloud ? (
+            <p className="px-0.5 text-caption text-ink-secondary">
+              Cloud transcription requires a Groq API key.
+            </p>
+          ) : isLocal ? (
+            <p className="px-0.5 text-caption text-ink-secondary">
+              First time with On-Device? Download your model in Audio Settings (Manage, below).
+            </p>
+          ) : (
+            <p className="px-0.5 text-caption text-ink-tertiary">
+              Choose an engine above to start dictating.
+            </p>
+          )}
 
           {/* Engine Sub-Options */}
           {isCloud ? (
@@ -210,7 +226,7 @@ export function Transcription() {
                 )}
               </button>
             </div>
-          ) : (
+          ) : isLocal ? (
             <div className="flex items-center justify-between rounded-card border border-teal/20 bg-teal-soft/20 p-3.5 shadow-soft-xs">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="grid h-9 w-9 shrink-0 place-items-center rounded-field bg-teal-soft text-teal-deep">
@@ -233,7 +249,7 @@ export function Transcription() {
                 Manage <ArrowRight className="h-3 w-3" />
               </button>
             </div>
-          )}
+          ) : null}
         </section>
 
         {/* Section 2: Cleanup & Formatting Mode */}

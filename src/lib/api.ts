@@ -28,7 +28,7 @@ const mockApi = (() => {
     hotkey: "ctrl+space", input_device: null,
     model: "base", device: "cuda", compute_type: "float16",
     samplerate: 16000, language: "en", output_language: "en",
-    cleanup_mode: "light", stt_provider: "groq",
+    cleanup_mode: "light", stt_provider: "none",
     groq_model: "whisper-large-v3-turbo", sound_effects: true,
     history_size: 50, paste_mode: "auto",
     noise_suppression: false, input_threshold: 0,

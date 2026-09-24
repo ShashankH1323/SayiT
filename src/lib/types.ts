@@ -26,8 +26,8 @@ export interface Settings {
   samplerate: number;
   language: string;
   output_language: string;
-  cleanup_mode: "light" | "casual" | "formal" | "structured" | "raw";
-  stt_provider: "groq" | "local";
+  cleanup_mode: "light" | "casual" | "formal" | "structured" | "raw" | "rule";
+  stt_provider: "none" | "groq" | "local";
   groq_model: "whisper-large-v3-turbo" | "whisper-large-v3";
   sound_effects: boolean;
   history_size: number;

@@ -84,6 +84,14 @@ def main():
         "--hidden-import=soxr",
         "--hidden-import=ctranslate2",
         "--hidden-import=faster_whisper",
+        # faster_whisper ships a bundled Silero VAD .onnx + data used at runtime by
+        # model.transcribe(vad_filter=True); PyInstaller doesn't grab data files
+        # from hidden-imports, so collect them explicitly or frozen local STT throws.
+        # NOTE: frozen GPU STT would additionally need the nvidia cuBLAS/cuDNN bin
+        # DLLs bundled (e.g. --collect-binaries=nvidia.cublas / nvidia.cudnn); left
+        # out to keep the exe small — CPU int8 fallback works without them.
+        "--collect-data=faster_whisper",
+        "--collect-data=ctranslate2",
         "--hidden-import=keyboard",
         "--hidden-import=mouse",
         "--hidden-import=pyperclip",

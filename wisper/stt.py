@@ -334,3 +334,16 @@ class ResilientGroqSTTBackend:
             _log.warning("Groq STT failed (%s); falling back to local faster-whisper", e)
             return self.fallback.transcribe(pcm, lang_in, lang_out, prompt=prompt)
 
+
+class NullBackend:
+    """No speech engine selected -> transcribe() always raises a friendly error.
+
+    Loads no model, touches no GPU, makes no network call. Wired by
+    WisperApp._build_stt when stt_provider is 'none'/unknown, or when the chosen
+    provider isn't usable (no Groq key, or the local model isn't downloaded)."""
+
+    def transcribe(self, *args, **kwargs) -> str:
+        raise RuntimeError(
+            "No speech engine configured — choose Cloud (Groq) or On-Device in Transcription settings."
+        )
+

@@ -88,6 +88,7 @@ export function Home() {
       }
       if (matchesHotkey(e, hotkey)) {
         e.preventDefault();
+        if (settings?.stt_provider === "none") { actions.navigate("transcription"); return; }
         actions.toggle();
       }
     };
@@ -96,6 +97,7 @@ export function Home() {
       const mouseHot = parseMouseEvent(e);
       if (mouseHot && normalizeHotkey(mouseHot) === normalizeHotkey(hotkey)) {
         e.preventDefault();
+        if (settings?.stt_provider === "none") { actions.navigate("transcription"); return; }
         actions.toggle();
       }
     };
@@ -109,7 +111,7 @@ export function Home() {
       window.removeEventListener("mousedown", handleMouseDown);
       window.removeEventListener("auxclick", handleMouseDown);
     };
-  }, [hotkey, actions]);
+  }, [hotkey, actions, settings]);
 
   const handleCopyRecent = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -170,6 +172,36 @@ export function Home() {
               Dismiss
             </GlassButton>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // No speech engine configured yet — prompt setup instead of implying readiness.
+  if (settings && settings.stt_provider === "none") {
+    return (
+      <div className="no-drag h-full w-full flex-1 overflow-y-auto">
+        <div className="mx-auto flex min-h-full max-w-sm flex-col items-center justify-center gap-5 px-8 py-10 text-center animate-in fade-in-0 duration-300">
+          <IconOrb
+            icon={<Mic className="h-7 w-7 text-accent" strokeWidth={2} aria-hidden="true" />}
+            tone="neutral"
+            size={76}
+            className="shadow-soft-md"
+          />
+          <div className="space-y-1">
+            <h2 className="text-display font-display font-bold text-ink">Set up a speech engine</h2>
+            <p className="text-body text-ink-secondary leading-relaxed">
+              Choose Cloud or On-Device in Transcription to start dictating.
+            </p>
+          </div>
+          <GlassButton
+            variant="primary"
+            size="md"
+            icon={<ArrowRight className="h-4 w-4" />}
+            onClick={() => actions.navigate("transcription")}
+          >
+            Set up now
+          </GlassButton>
         </div>
       </div>
     );
