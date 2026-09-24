@@ -121,7 +121,27 @@ class FasterWhisperBackend:
                     "`pip install faster-whisper` to enable transcription"
                 ) from e
             device, compute_type = self._target()
-            self._model = WhisperModel(self.model, device=device, compute_type=compute_type)
+            try:
+                self._model = WhisperModel(
+                    self.model,
+                    device=device,
+                    compute_type=compute_type,
+                    local_files_only=True,
+                )
+            except Exception as e:
+                # A genuine CUDA-runtime failure must reach transcribe() UNWRAPPED so
+                # its _is_cuda_error() check triggers the one-shot CPU int8 fallback
+                # (the build ships without cuBLAS/cuDNN and relies on that fallback).
+                # Only wrap a real "not available locally" failure with the friendly
+                # message — _build_stt already gate-checks is_downloaded, so that path
+                # is the rare cache-mismatch / partial-download case.
+                if _is_cuda_error(e):
+                    raise
+                raise RuntimeError(
+                    f"speech model {self.model!r} isn't available locally for "
+                    f"{device}/{compute_type}. Download it from the Models panel "
+                    f"first, then retry (or check the GPU/compute setup)."
+                ) from e
             _log.info("wisper stt: loaded %s on %s/%s", self.model, device, compute_type)
         return self._model
 
@@ -299,40 +319,6 @@ class GroqWhisperBackend:
 
         text = (resp_text or "").strip()
         return _filter_hallucination(text)
-
-
-class ResilientGroqSTTBackend:
-    """Uses GroqWhisperBackend by default, seamlessly falling back to local
-    FasterWhisperBackend if network or Groq fails so dictation never drops."""
-
-    def __init__(
-        self,
-        groq_backend: GroqWhisperBackend,
-        fallback_backend: FasterWhisperBackend,
-    ):
-        self.groq = groq_backend
-        self.fallback = fallback_backend
-
-    @property
-    def model(self) -> str:
-        return self.groq.model
-
-    @model.setter
-    def model(self, value: str) -> None:
-        self.groq.model = value
-
-    def transcribe(
-        self,
-        pcm: np.ndarray,
-        lang_in: str | None = "en",
-        lang_out: str = "en",
-        prompt: str | None = None,
-    ) -> str:
-        try:
-            return self.groq.transcribe(pcm, lang_in, lang_out, prompt=prompt)
-        except Exception as e:
-            _log.warning("Groq STT failed (%s); falling back to local faster-whisper", e)
-            return self.fallback.transcribe(pcm, lang_in, lang_out, prompt=prompt)
 
 
 class NullBackend:

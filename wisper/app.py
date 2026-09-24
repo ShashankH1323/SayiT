@@ -88,6 +88,18 @@ class WisperApp:
                 # and starts over, so the stale error stops showing.
                 self.last_error = ""  # clear a stale error on a fresh attempt
                 self._cancel_requested.clear()
+                # No usable engine (provider "none", missing Groq key, or local model
+                # not downloaded) -> don't open the mic for a capture that can only
+                # fail; surface the setup prompt instead. Guarding here covers the
+                # global hotkey too, not just the in-app key handler.
+                self._refresh_stt()
+                if isinstance(self.stt, NullBackend):
+                    self.last_error = (
+                        "No speech engine configured — choose Cloud (Groq) or "
+                        "On-Device in Transcription settings."
+                    )
+                    self.state = State.ERROR
+                    return
                 if getattr(self.config, "sound_effects", True):
                     sound.play_start()
                 try:
@@ -131,8 +143,7 @@ class WisperApp:
             # Rebuild the STT backend if the engine selection changed since it was
             # built, so an in-app engine switch takes effect without a restart.
             # Unchanged config keeps the existing backend (and any loaded local model).
-            if self._stt_config_key() != self._stt_key:
-                self.stt = self._build_stt()
+            self._refresh_stt()
             try:
                 raw = self.stt.transcribe(
                     pcm,
@@ -236,9 +247,18 @@ class WisperApp:
         return bool(os.environ.get("GROQ_API_KEY", "").strip())
 
     def _stt_config_key(self) -> tuple:
-        """The config tuple _build_stt selects on; _process rebuilds when it changes."""
+        """The config tuple _build_stt selects on; toggle()/_process rebuild when it
+        changes. Includes local-model availability so a mid-session download takes
+        effect (otherwise the live NullBackend would persist until restart)."""
         c = self.config
-        return (c.stt_provider, c.model, c.device, c.compute_type, c.groq_model, self._has_groq_key())
+        downloaded = models.is_downloaded(c.model) if c.stt_provider == "local" else False
+        return (c.stt_provider, c.model, c.device, c.compute_type,
+                c.groq_model, self._has_groq_key(), downloaded)
+
+    def _refresh_stt(self) -> None:
+        """Rebuild the backend if the engine selection or its availability changed."""
+        if self._stt_config_key() != self._stt_key:
+            self.stt = self._build_stt()
 
     def _build_stt(self):
         """Build the STT backend from config.stt_provider — engines are strictly opt-in.
@@ -276,12 +296,12 @@ class WisperApp:
             self.last_error = repr(exc)
 
     def set_groq_model(self, model: str) -> None:
-        """Set the Groq Whisper model name (e.g. whisper-large-v3-turbo)."""
+        """Set the Groq Whisper model name (e.g. whisper-large-v3-turbo). The live
+        backend is rebuilt lazily on the next toggle/transcribe via _refresh_stt
+        (groq_model is part of _stt_config_key)."""
         try:
             self.config.groq_model = model
             self.config.save()
-            if hasattr(self.stt, "groq"):
-                self.stt.groq.model = model
         except Exception as exc:
             log.exception("[wisper] set_groq_model failed")
             self.last_error = repr(exc)

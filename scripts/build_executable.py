@@ -76,8 +76,12 @@ def main():
         f"--distpath={release_dir}",
         f"--workpath={work_dir}",
         f"--add-data={ROOT / 'dist'}{os.pathsep}dist",
+        "--collect-all=webview",
+        "--collect-all=pythonnet",
+        "--collect-all=clr_loader",
         "--hidden-import=webview",
         "--hidden-import=webview.platforms.winforms",
+        "--hidden-import=webview.platforms.edgechromium",
         "--hidden-import=clr_loader",
         "--hidden-import=pythonnet",
         "--hidden-import=sounddevice",
@@ -105,6 +109,10 @@ def main():
 
     if icon_path.exists():
         pyinstaller_args.append(f"--icon={icon_path}")
+        # Also bundle the .ico as a data file so the runtime tray-icon lookup in
+        # wisper/webui.py (searches sys._MEIPASS/say_it.ico) resolves in the
+        # frozen build — the exe resource icon isn't extractable at runtime.
+        pyinstaller_args.append(f"--add-data={icon_path}{os.pathsep}.")
 
     pyinstaller_args.append(str(ROOT / "run_app.py"))
 

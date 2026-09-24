@@ -42,12 +42,19 @@ class FakeCapture:
 class FakeWindow:
     def __init__(self):
         self.calls = []
+        self.uid = "fake-win-1"
+        self.on_top = False
+        self.size = (720, 720)
 
     def minimize(self):
         self.calls.append("minimize")
 
     def destroy(self):
         self.calls.append("destroy")
+
+    def resize(self, w, h):
+        self.size = (w, h)
+        self.calls.append(("resize", w, h))
 
 
 class FakeApp:
@@ -129,6 +136,7 @@ class FakeModelsModule:
         self._dl_result = dl_result
         self._dl_error = dl_error
         self._downloaded = downloaded
+        self.started = []
 
     def model_status(self):
         return list(self._status)
@@ -137,6 +145,14 @@ class FakeModelsModule:
         if self._dl_error is not None:
             raise self._dl_error
         return self._dl_result
+
+    def start_download(self, name):
+        if self._dl_error is not None:
+            raise self._dl_error
+        self.started.append(name)
+
+    def download_progress(self):
+        return {"active": bool(self.started), "name": self.started[-1] if self.started else None, "done": False, "error": None, "pct": 50.0}
 
     def is_downloaded(self, name):
         return self._downloaded
@@ -194,7 +210,8 @@ def test_settings_options():
     want_keys = {"hotkey", "input_device", "model", "device", "compute_type",
                  "samplerate", "language", "output_language", "cleanup_mode",
                  "stt_provider", "groq_model", "sound_effects", "history_size",
-                 "paste_mode"}
+                 "paste_mode", "noise_suppression", "input_threshold",
+                 "launch_at_login", "show_minibar"}
     settings = api.get_settings()
     check("get_settings keys", set(settings) == want_keys, sorted(settings))
     check("get_settings values match config", settings["hotkey"] == app.config.hotkey
@@ -205,7 +222,7 @@ def test_settings_options():
           "stt_providers", "groq_models", "languages", "local_models"}, sorted(opts))
     check("get_options cleanup_modes", opts["cleanup_modes"] ==
           ["light", "casual", "formal", "structured", "raw"])
-    check("get_options paste_modes", opts["paste_modes"] == ["auto", "ctrl_v", "ctrl_shift_v"])
+    check("get_options paste_modes", opts["paste_modes"] == ["auto", "ctrl_v", "ctrl_shift_v", "off"])
     check("get_options stt_providers", opts["stt_providers"] == ["groq", "local"])
     check("get_options groq_models = real", opts["groq_models"] == list(real_stt.GROQ_AVAILABLE_MODELS))
     check("get_options local_models = real", opts["local_models"] == list(real_models.AVAILABLE_MODELS))
@@ -281,27 +298,40 @@ def test_devices_history_models_window():
     orig = swap("models", FakeModelsModule([], dl_result="/cache/m.bin"))
     try:
         r = api.download_model("large-v3")
-        check("download_model ok shape", r == {"name": "large-v3", "downloaded": True,
-              "path": "/cache/m.bin", "error": None}, r)
+        check("download_model ok shape", r == {"name": "large-v3", "started": True, "error": None}, r)
+        prog = api.download_progress()
+        check("download_progress shape", prog.get("active") is True, prog)
     finally:
         swap("models", orig)
 
     orig = swap("models", FakeModelsModule([], dl_error=RuntimeError("no fw"), downloaded=False))
     try:
         r = api.download_model("large-v3")
-        check("download_model error shape", r["downloaded"] is False and r["error"]
-              and r["path"] is None, r)
+        check("download_model error shape", r.get("started") is False and "no fw" in str(r.get("error")), r)
     finally:
         swap("models", orig)
+
+    # Preview audio monitor
+    check("start_preview returns None", api.start_preview("Test Mic") is None)
+    check("start_preview sets monitoring", app.audio._monitoring is True)
+    check("stop_preview returns None", api.stop_preview() is None)
+    check("stop_preview stops monitoring", app.audio._monitoring is False)
 
     win = FakeWindow()
     api._window = win
     check("window_minimize returns None", api.window_minimize() is None)
     check("window_close returns None", api.window_close() is None)
-    check("window ops routed", win.calls == ["minimize", "destroy"], win.calls)
+    check("window ops routed", "minimize" in win.calls and "destroy" in win.calls, win.calls)
+    
+    # window mode & drag
+    check("window_drag returns True", api.window_drag() is True)
+    check("set_window_mode minibar", api.set_window_mode("minibar") is None)
+    check("set_window_mode full", api.set_window_mode("full") is None)
+    check("window_quit returns None", api.window_quit() is None)
+
     api._window = None
     check("window ops no-op when no window", api.window_minimize() is None
-          and api.window_close() is None)
+          and api.window_close() is None and api.set_window_mode("full") is None)
 
 
 def main():

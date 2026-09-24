@@ -1,8 +1,5 @@
 /* Say It — styling foundation (light soft-glass canvas, frameless 720x720).
-   Fonts: Google Fonts CDN — no @fontsource/* package is bundled in node_modules.
-   ponytail: CDN needs network at first paint; add @fontsource/{inter,manrope,caveat}
-   and swap this @import for offline builds. */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&family=Caveat:wght@500;600;700&display=swap');
+   Fonts: System font stack with fallbacks for standalone offline operation. */
 
 @tailwind base;
 @tailwind components;

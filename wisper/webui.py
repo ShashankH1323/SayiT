@@ -72,6 +72,7 @@ def _set_taskbar_visible(hwnd: int, visible: bool):
         return
     try:
         import ctypes
+        from ctypes import wintypes
         GWL_EXSTYLE = -20
         WS_EX_TOOLWINDOW = 0x00000080
         WS_EX_APPWINDOW = 0x00040000
@@ -79,33 +80,64 @@ def _set_taskbar_visible(hwnd: int, visible: bool):
         SWP_NOSIZE = 0x0001
         SWP_NOZORDER = 0x0004
         SWP_FRAMECHANGED = 0x0020
-        cur = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+        user32 = ctypes.windll.user32
+        get_long = getattr(user32, "GetWindowLongPtrW", user32.GetWindowLongW)
+        set_long = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
+        # Prototype the calls: hwnd is a 64-bit handle and the *Ptr* variants
+        # take/return LONG_PTR. Without argtypes/restype ctypes marshals as c_int
+        # and would truncate pointer-sized values.
+        get_long.argtypes = [wintypes.HWND, ctypes.c_int]
+        get_long.restype = ctypes.c_ssize_t
+        set_long.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t]
+        set_long.restype = ctypes.c_ssize_t
+        user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int,
+                                        ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.UINT]
+        user32.SetWindowPos.restype = wintypes.BOOL
+        cur = get_long(hwnd, GWL_EXSTYLE)
         if visible:
             new_style = (cur | WS_EX_APPWINDOW) & ~WS_EX_TOOLWINDOW
         else:
             new_style = (cur | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW
-        ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new_style)
-        ctypes.windll.user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED)
+        set_long(hwnd, GWL_EXSTYLE, new_style)
+        user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED)
     except Exception as e:
         log.debug("set_taskbar_visible error: %s", e)
 
 
 def _clamp_to_workarea(window, w: int, h: int):
     """Keep a (just-resized) window fully inside the monitor work area (Win32),
-    so a pill dragged to a screen edge can't reopen the full window offscreen."""
+    so a pill dragged to a screen edge can't reopen the full window offscreen.
+
+    set_window_mode runs on the pywebview JS-bridge worker thread, so the
+    WinForms reads/writes here are marshaled to the UI thread; touching form
+    geometry cross-thread can raise or corrupt state."""
     if sys.platform != "win32":
         return
     try:
         import System.Windows.Forms as WinForms
+        from System.Windows.Forms import MethodInvoker
         from webview.platforms.winforms import BrowserView
         form = BrowserView.instances.get(window.uid)
         if form is None:
             return
-        wa = WinForms.Screen.FromControl(form).WorkingArea
-        x = min(max(form.Left, wa.X), wa.X + wa.Width - w)
-        y = min(max(form.Top, wa.Y), wa.Y + wa.Height - h)
-        if (x, y) != (form.Left, form.Top):
-            window.move(x, y)
+
+        def _clamp():
+            try:
+                wa = WinForms.Screen.FromControl(form).WorkingArea
+                x = min(max(form.Left, wa.X), wa.X + wa.Width - w)
+                y = min(max(form.Top, wa.Y), wa.Y + wa.Height - h)
+                if (x, y) != (form.Left, form.Top):
+                    # window.move keeps pywebview's own cached x/y in sync; safe here
+                    # because _clamp already runs on the UI thread (the cross-thread
+                    # call was the original bug, not the API itself).
+                    window.move(x, y)
+            except Exception as e:
+                log.debug("clamp_to_workarea (ui thread) error: %s", e)
+
+        if form.InvokeRequired:
+            form.BeginInvoke(MethodInvoker(_clamp))
+        else:
+            _clamp()
     except Exception as e:
         log.debug("clamp_to_workarea error: %s", e)
 
@@ -308,12 +340,12 @@ class Api:
                         from webview.platforms.winforms import BrowserView
                         form = BrowserView.instances.get(self._window.uid)
                         if form is not None:
-                            hwnd = int(form.Handle)
+                            hwnd = form.Handle.ToInt64()
                             _set_taskbar_visible(hwnd, mode != "minibar")
                             if mode != "minibar":
                                 try:
-                                    from System import MethodInvoker
                                     import System.Windows.Forms as WinForms
+                                    from System.Windows.Forms import MethodInvoker
 
                                     def _restore():
                                         # Activate() alone won't un-minimize a WinForms form.
@@ -351,6 +383,30 @@ class Api:
 
 _window = None     # module ref to the live window (single-window app)
 _tray_icon = None  # Windows system tray notify icon
+_instance_mutex = None  # OS single-instance mutex; held for the process lifetime
+
+
+def _acquire_single_instance() -> bool:
+    """True if this is the only running instance. A named mutex prevents a second
+    process from initializing WebView2 against the now-persistent user-data folder
+    (%APPDATA%\\SayIt\\webview) and crashing on the lock. Win32 only; always True
+    elsewhere, and never blocks startup on a guard failure."""
+    if sys.platform != "win32":
+        return True
+    global _instance_mutex
+    if _instance_mutex is not None:
+        return True  # already acquired earlier in this same process (idempotent)
+    try:
+        import ctypes
+        from ctypes import wintypes
+        ERROR_ALREADY_EXISTS = 183
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
+        k32.CreateMutexW.restype = wintypes.HANDLE
+        _instance_mutex = k32.CreateMutexW(None, False, "SayIt_SingleInstance_Mutex")
+        return ctypes.get_last_error() != ERROR_ALREADY_EXISTS
+    except Exception:
+        return True
 
 
 def _setup_windows_native(window, api):
@@ -364,7 +420,7 @@ def _setup_windows_native(window, api):
         clr.AddReference("System.Drawing")
         import System.Windows.Forms as WinForms
         import System.Drawing as Drawing
-        from System import MethodInvoker
+        from System.Windows.Forms import MethodInvoker
         from webview.platforms.winforms import BrowserView
 
         form = BrowserView.instances.get(window.uid)
@@ -381,9 +437,13 @@ def _setup_windows_native(window, api):
                         ("cyBottomHeight", ctypes.c_int),
                     ]
 
-                hwnd = int(form.Handle)
+                hwnd = form.Handle.ToInt64()
                 m = _MARGINS(-1, -1, -1, -1)
-                ctypes.windll.dwmapi.DwmExtendFrameIntoClientArea(hwnd, ctypes.byref(m))
+                from ctypes import wintypes
+                dwm = ctypes.windll.dwmapi
+                dwm.DwmExtendFrameIntoClientArea.argtypes = [wintypes.HWND, ctypes.POINTER(_MARGINS)]
+                dwm.DwmExtendFrameIntoClientArea.restype = ctypes.c_long  # HRESULT
+                dwm.DwmExtendFrameIntoClientArea(hwnd, ctypes.byref(m))
                 form.BackColor = Drawing.Color.Black
 
                 if hasattr(form, "browser") and hasattr(form.browser, "webview"):
@@ -393,9 +453,25 @@ def _setup_windows_native(window, api):
                 global _tray_icon
                 if _tray_icon is None:
                     _tray_icon = WinForms.NotifyIcon()
-                    # Frameless windows have no form.Icon; fall back to the stock
-                    # application icon so the tray entry (and its menu) always shows.
-                    _tray_icon.Icon = form.Icon if form.Icon is not None else Drawing.SystemIcons.Application
+
+                    # Find say_it.ico for the system tray icon
+                    icon_obj = None
+                    icon_candidates = [
+                        Path(__file__).resolve().parent.parent / "say_it.ico",
+                        Path(sys.executable).parent / "say_it.ico",
+                    ]
+                    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+                        icon_candidates.append(Path(sys._MEIPASS) / "say_it.ico")
+                        icon_candidates.append(Path(sys._MEIPASS).parent / "say_it.ico")
+                    for ic in icon_candidates:
+                        if ic.is_file():
+                            try:
+                                icon_obj = Drawing.Icon(str(ic))
+                                break
+                            except Exception:
+                                pass
+
+                    _tray_icon.Icon = icon_obj or form.Icon or Drawing.SystemIcons.Application
                     _tray_icon.Text = "Say It"
                     _tray_icon.Visible = True
 
@@ -441,6 +517,10 @@ def launch(app):
     os.environ["WEBVIEW2_DEFAULT_BACKGROUND_COLOR"] = "0"
     import webview  # lazy: keeps this module importable/testable without pywebview
 
+    if not _acquire_single_instance():
+        log.warning("[wisper] another instance is already running; exiting")
+        return
+
     api = Api(app)
     _window = webview.create_window(
         "Say It",
@@ -459,8 +539,17 @@ def launch(app):
         _setup_windows_native(_window, api)
 
     _window.events.shown += on_shown
+
+    appdata = os.environ.get("APPDATA")
+    storage_dir = os.path.join(appdata, "SayIt", "webview") if appdata else None
+    if storage_dir:
+        try:
+            os.makedirs(storage_dir, exist_ok=True)
+        except Exception:
+            storage_dir = None
+
     try:
-        webview.start()
+        webview.start(private_mode=False, storage_path=storage_dir)
     finally:
         global _tray_icon
         if _tray_icon is not None:
