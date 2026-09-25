@@ -1,4 +1,4 @@
-"""Self-test for wisper.audio. Runs with numpy + stdlib only.
+"""Self-test for sayit.audio. Runs with numpy + stdlib only.
 
     python tests/test_audio.py
 """
@@ -9,8 +9,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 
-import wisper.audio as audio
-from wisper.audio import resample, to_mono
+import sayit.audio as audio
+from sayit.audio import resample, to_mono
 
 
 def test_to_mono():

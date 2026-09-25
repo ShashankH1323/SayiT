@@ -1,9 +1,9 @@
-"""Unit tests for wisper.sound: verifying tactile pure-bass acoustic earcons."""
+"""Unit tests for sayit.sound: verifying tactile pure-bass acoustic earcons."""
 
 import numpy as np
 import pytest
 
-from wisper import sound
+from sayit import sound
 
 
 def _spectral_stats(sig: np.ndarray, sr: int = 44100):

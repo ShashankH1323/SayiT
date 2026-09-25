@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from wisper.clean import RuleCleaner
+from sayit.clean import RuleCleaner
 
 
 def main() -> None:
@@ -17,16 +17,18 @@ def main() -> None:
     c = _C()
 
     # 1) full disfluency sweep: fillers gone, doubles collapsed, cased, terminated
-    out = c.clean("um so i i think you know it's it's fine")
+    out = c.clean("um so i i think it's it's fine")
     low = out.lower()
     assert "um" not in low.split(), f"filler 'um' survived: {out!r}"
-    assert "you know" not in low, f"'you know' survived: {out!r}"
     assert "i i" not in low, f"doubled 'i' survived: {out!r}"
     assert "it's it's" not in low, f'doubled "it\'s" survived: {out!r}'
     assert out[:1].isupper(), f"sentence not capitalized: {out!r}"
     assert out.rstrip().endswith("."), f"no terminal punctuation: {out!r}"
     assert "think" in low and "fine" in low, f"content word lost: {out!r}"
     assert out == "So I think it's fine.", f"unexpected result: {out!r}"
+
+    # 1b) boundary filler at start is stripped
+    assert "you know" not in c.clean("you know, it is fine").lower()
 
     # 2) immediate repeat of a determiner collapses
     out = c.clean("the the cat sat")

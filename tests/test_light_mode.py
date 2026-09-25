@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from wisper.clean import RuleCleaner
+from sayit.clean import RuleCleaner
 
 
 def load_env():

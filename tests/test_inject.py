@@ -8,8 +8,8 @@ import sys
 # repo root on path so `wisper` (namespace pkg) imports when run as a script
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from wisper.inject import _paste_keys  # noqa: E402
-from wisper.hotkey import HotkeyListener  # noqa: E402
+from sayit.inject import _paste_keys  # noqa: E402
+from sayit.hotkey import HotkeyListener  # noqa: E402
 
 
 def test_paste_keys():
@@ -40,7 +40,7 @@ def test_clipboard_roundtrip():
 
 def test_copy_resilient_graceful_fail():
     """A locked clipboard (copy raises) must be swallowed, not propagated."""
-    from wisper import inject
+    from sayit import inject
 
     calls = {"n": 0}
 
@@ -68,7 +68,7 @@ def test_copy_resilient_graceful_fail():
 
 
 def test_copy_resilient_succeeds_after_retry():
-    from wisper import inject
+    from sayit import inject
 
     calls = {"n": 0}
 

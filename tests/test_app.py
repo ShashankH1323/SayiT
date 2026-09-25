@@ -13,14 +13,14 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from wisper.app import WisperApp, State
-from wisper.config import Config
-from wisper.clean import RuleCleaner
+from sayit.app import SayItApp as WisperApp, State
+from sayit.config import Config
+from sayit.clean import RuleCleaner
 
 # The error-path case intentionally makes STT raise; the app logs it via
 # log.exception and recovers. Silence that expected traceback so it can't be
 # misread as a test failure.
-logging.getLogger("wisper").setLevel(logging.CRITICAL)
+logging.getLogger("sayit").setLevel(logging.CRITICAL)
 
 
 class FakeAudio:
@@ -160,7 +160,7 @@ def main():
     #    or record to history. Before the fix, the run-token check sat AFTER the
     #    worker wrote state=PASTING, so a cancel mid-clean left state=PASTING and the
     #    next toggle saw a busy state and did nothing (hotkey looked dead).
-    import wisper.app as app_mod
+    import sayit.app as app_mod
     recorded = []
     orig_record = app_mod.history.record
     app_mod.history.record = lambda text, size: recorded.append(text)

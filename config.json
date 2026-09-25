@@ -1,14 +1,14 @@
 {
   "hotkey": "ctrl+space",
-  "input_device": "Microphone (NVIDIA Broadcast)",
+  "input_device": null,
   "samplerate": 16000,
-  "model": "base",
+  "model": "large-v3-turbo",
   "device": "cuda",
   "compute_type": "float16",
   "language": "en",
   "output_language": "en",
-  "cleanup_mode": "light",
-  "stt_provider": "none",
+  "cleanup_mode": "casual",
+  "stt_provider": "groq",
   "groq_model": "whisper-large-v3-turbo",
   "sound_effects": true,
   "history_size": 50,
@@ -16,6 +16,6 @@
   "noise_suppression": false,
   "input_threshold": 0.0,
   "launch_at_login": false,
-  "show_minibar": true,
+  "show_minibar": false,
   "config_version": 2
 }

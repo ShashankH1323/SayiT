@@ -1,4 +1,4 @@
-"""Self-test for wisper.stt — runs with only numpy + stdlib (faster_whisper NOT installed)."""
+"""Self-test for sayit.stt — runs with only numpy + stdlib."""
 
 import os
 import sys
@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 
-from wisper.stt import FasterWhisperBackend, _resolve_task
+from sayit.stt import FasterWhisperBackend, _resolve_task
 
 
 def test_construct_without_faster_whisper():
