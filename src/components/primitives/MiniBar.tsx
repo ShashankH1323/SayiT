@@ -1,5 +1,6 @@
 import { Mic, Loader2, Check, Square } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { useWaveform } from "../../lib/useLevelHistory";
 import { SayItMark } from "./SayItMark";
 
 export type MiniBarState = "idle" | "listening" | "processing" | "pasted";
@@ -30,18 +31,13 @@ export function WaveformDots({
 }) {
   const BARS = 5;
   const isSpeaking = state === "listening" && level > 0.01;
-  const amplified = Math.min(1, level * 3.5);
+  // Rolling-history waveform: bars scroll with the voice instead of moving in
+  // lockstep. Idle/silent -> flat resting height (level stays ~0).
+  const heights = useWaveform(state === "listening" ? level : 0, BARS, 2.5, 15);
 
   return (
     <div className="flex h-5 items-center justify-center gap-1 px-1 select-none" aria-hidden="true">
       {Array.from({ length: BARS }).map((_, i) => {
-        const bell = Math.sin(((i + 1) / (BARS + 1)) * Math.PI);
-        const minHeight = 2.5;
-        const maxHeight = 15;
-        const dynamicHeight = isSpeaking
-          ? minHeight + (maxHeight - minHeight) * bell * amplified * (0.8 + 0.2 * Math.sin(i * 1.8))
-          : minHeight;
-
         return (
           <span
             key={i}
@@ -56,7 +52,7 @@ export function WaveformDots({
                 : "bg-ink/30"
             )}
             style={{
-              height: `${Math.round(dynamicHeight)}px`,
+              height: `${heights[i]}px`,
               opacity: isSpeaking ? 1 : state === "listening" ? 0.6 : 0.45,
             }}
           />
@@ -90,7 +86,7 @@ export function MiniBar({
       aria-live="polite"
       className={cn(
         "drag pywebview-drag-region relative inline-flex h-7 w-[116px] items-center justify-between rounded-full px-1.5 py-0.5 select-none",
-        "backdrop-blur-xl bg-white/92",
+        "bg-white/95",
         "border border-white/80 shadow-[0_2px_10px_rgba(15,23,42,0.12),0_1px_2px_rgba(15,23,42,0.06)]",
         isStandalone && "cursor-default",
         className,

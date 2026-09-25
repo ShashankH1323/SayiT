@@ -5,6 +5,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Accessibility: honor the OS "reduce motion" setting. Neutralizes the pulse/spin/
+   slide-in/confetti motion across the app for users who opt out of animation. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @layer base {
   :root {
     /* ---- Brand tokens (source of truth; tailwind.config.js mirrors the hexes) ---- */
@@ -121,18 +132,20 @@
 }
 
 @layer components {
-  /* Premium light glass surface (cards / buttons / mini bar). */
+  /* Light glass surface (cards / buttons / mini bar).
+     backdrop-filter: blur() was removed on purpose: in the frameless transparent
+     WebView2 window it forces the compositor to re-sample the blurred region over
+     the animated background blobs every frame, which pegged the GPU/renderer and
+     made the onboarding pages (the first .glass surfaces appear on Permissions)
+     lag into "not responding". The fill is already near-opaque, so on the light
+     canvas the surface looks the same without the per-frame blur cost. */
   .glass {
-    background: var(--glass);
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
+    background: rgba(255, 255, 255, 0.82);
     border: 1px solid var(--hairline);
     box-shadow: var(--shadow-soft);
   }
   .glass-strong {
-    background: var(--glass-strong);
-    -webkit-backdrop-filter: blur(20px);
-    backdrop-filter: blur(20px);
+    background: rgba(255, 255, 255, 0.9);
     border: 1px solid var(--hairline);
     box-shadow: var(--shadow-soft);
   }

@@ -5,6 +5,7 @@ import { useEffect, useState, useRef } from "react";
 import { Mic, ArrowLeft, RefreshCw, CheckCircle2 } from "lucide-react";
 import { useApp } from "../../lib/appContext";
 import { cn } from "../../lib/utils";
+import { useWaveform } from "../../lib/useLevelHistory";
 import { SoftBlobBackground } from "../primitives/SoftBlobBackground";
 import { GlassButton } from "../primitives/GlassButton";
 import { IconOrb } from "../primitives/IconOrb";
@@ -16,19 +17,12 @@ const bareName = (s: string) => s.split("—")[0].trim();
 function LiveWaveformVisualizer({ level }: { level: number }) {
   const BARS = 18;
   const isSpeaking = level > 0.01;
-  const amplified = Math.min(1, level * 3.5);
+  // Rolling-history waveform: bars scroll with the voice; calm/flat when silent.
+  const heights = useWaveform(level, BARS, 4, 34);
 
   return (
     <div className="flex h-11 items-center justify-center gap-1.5 px-2 select-none" aria-hidden="true">
       {Array.from({ length: BARS }).map((_, i) => {
-        const bell = Math.sin(((i + 1) / (BARS + 1)) * Math.PI);
-        const minH = 4;
-        const maxH = 34;
-        // Calm resting height (minH) when silent; dynamic waveform height only when speaking
-        const dynamicH = isSpeaking
-          ? minH + (maxH - minH) * bell * amplified * (0.75 + 0.25 * Math.sin(i * 1.5))
-          : minH;
-
         return (
           <span
             key={i}
@@ -39,7 +33,7 @@ function LiveWaveformVisualizer({ level }: { level: number }) {
                 : "bg-ink/15 opacity-40"
             )}
             style={{
-              height: `${Math.round(dynamicH)}px`,
+              height: `${heights[i]}px`,
             }}
           />
         );

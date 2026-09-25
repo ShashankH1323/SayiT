@@ -48,7 +48,10 @@ class WisperApp:
         self._lock = threading.Lock()
         self.idle_event = threading.Event()
         self.idle_event.set()
-        self._cancel_requested = threading.Event()
+        # Monotonic run token: each worker owns the run whose id it was started with.
+        # cancel() and a fresh toggle() bump it, so a superseded worker sees
+        # self._run_seq != rid and bows out without pasting or resetting live state.
+        self._run_seq = 0
         self._listener = None  # HotkeyListener, set in run(); swapped by set_hotkey()
 
     def cancel(self):
@@ -60,6 +63,7 @@ class WisperApp:
                     self.audio.stop()
                 except Exception as exc:
                     log.warning("[wisper] audio stop during cancel: %s", exc)
+                self._run_seq += 1  # invalidate any worker (defensive; none in RECORDING)
                 self.state = State.IDLE
                 self.idle_event.set()
                 if getattr(self.config, "sound_effects", True):
@@ -67,7 +71,7 @@ class WisperApp:
                 return
 
             if self.state in (State.TRANSCRIBING, State.CLEANING, State.PASTING):
-                self._cancel_requested.set()
+                self._run_seq += 1  # in-flight worker loses authority over the run
                 self.state = State.IDLE
                 self.idle_event.set()
                 if getattr(self.config, "sound_effects", True):
@@ -87,7 +91,6 @@ class WisperApp:
                 # ERROR is a resting state (see _process): a fresh toggle clears it
                 # and starts over, so the stale error stops showing.
                 self.last_error = ""  # clear a stale error on a fresh attempt
-                self._cancel_requested.clear()
                 # No usable engine (provider "none", missing Groq key, or local model
                 # not downloaded) -> don't open the mic for a capture that can only
                 # fail; surface the setup prompt instead. Guarding here covers the
@@ -119,18 +122,42 @@ class WisperApp:
                 self.state = State.TRANSCRIBING
                 if getattr(self.config, "sound_effects", True):
                     sound.play_stop()
-                threading.Thread(target=self._process, daemon=True).start()
+                self._run_seq += 1
+                rid = self._run_seq
+                threading.Thread(target=self._process, args=(rid,), daemon=True).start()
             # else: TRANSCRIBING / CLEANING / PASTING -> busy, ignore.
 
-    def _process(self):
+    def _own_transition(self, rid, new_state) -> bool:
+        """Atomically set self.state = new_state *iff* this worker still owns the run.
+        Returns True when it still owns the run (caller proceeds), False when it has
+        been superseded (caller must bail without touching state).
+
+        Serialized against cancel(), which holds the same lock, so a cancel cannot
+        interleave between the ownership check and the state write. That is what
+        keeps a superseded worker from clobbering cancel()'s IDLE or, worse, leaving
+        state stuck at a transient value (CLEANING/PASTING) with no worker running."""
+        with self._lock:
+            if self._run_seq != rid:
+                return False
+            self.state = new_state
+            return True
+
+    def _process(self, rid):
         """Worker: stop capture, transcribe, clean, paste. Success ends in IDLE;
         any failure discards the utterance and rests in ERROR (never a partial
         paste). ERROR is a resting state the next toggle clears, and the UI shows
-        the error only while ERROR is current -- so it never lingers under "Idle"."""
+        the error only while ERROR is current -- so it never lingers under "Idle".
+
+        `rid` is this worker's run token. cancel() or a newer toggle() bumps
+        self._run_seq, so once self._run_seq != rid this worker is superseded: it
+        stops without pasting or recording, and touches neither the live state nor
+        idle_event. Every state write goes through _own_transition (or the guarded
+        block below), so a supersession that lands mid-step can't leave state stuck
+        at a transient value -- the bug where a cancel during a slow cleanup left
+        state at PASTING with no worker, deadening the hotkey until a second cancel."""
         try:
             pcm = self.audio.stop()
-            if self._cancel_requested.is_set():
-                self.state = State.IDLE
+            if self._run_seq != rid:
                 return
             # Pre-STT seam: optional denoise + silence-gate (defaults are no-ops).
             pcm = self.audio.preprocess_for_stt(
@@ -138,7 +165,7 @@ class WisperApp:
                 self.config.noise_suppression, self.config.input_threshold,
             )
             if pcm is None or getattr(pcm, "size", len(pcm)) == 0:
-                self.state = State.IDLE  # gated as silence: skip STT/clean/paste
+                self._own_transition(rid, State.IDLE)  # gated as silence: skip STT/clean/paste
                 return
             # Rebuild the STT backend if the engine selection changed since it was
             # built, so an in-app engine switch takes effect without a restart.
@@ -153,10 +180,14 @@ class WisperApp:
                 )
             except TypeError:
                 raw = self.stt.transcribe(pcm, self.config.language, self.config.output_language)
-            if self._cancel_requested.is_set() or not raw:
-                self.state = State.IDLE
+            if not raw:
+                self._own_transition(rid, State.IDLE)
                 return
-            self.state = State.CLEANING
+            # Claim CLEANING atomically. If we've been superseded (or a cancel lands
+            # exactly here), _own_transition returns False and we bow out WITHOUT
+            # leaving state at the transient CLEANING.
+            if not self._own_transition(rid, State.CLEANING):
+                return
             cleanup_mode = self.config.cleanup_mode
             # Groq-requiring cleanup modes (light/casual/formal/structured) reach the
             # network via reform.py. Only take that path when actually on cloud
@@ -165,33 +196,46 @@ class WisperApp:
             if not on_cloud and cleanup_mode in ("light", "casual", "formal", "structured"):
                 cleanup_mode = "rule"
             cleaned = self.cleaner.clean(raw, cleanup_mode, self.config.output_language)
-            if self._cancel_requested.is_set() or not cleaned:
-                self.state = State.IDLE
+            if not cleaned:
+                self._own_transition(rid, State.IDLE)
                 return
-            self.last_text = cleaned
-            # Record before pasting: a valid transcript is saved to history even
-            # if the paste step later fails, so the user never loses their words.
-            history.record(cleaned, self.config.history_size)
-            self.state = State.PASTING
-            if self._cancel_requested.is_set():
-                self.state = State.IDLE
-                return
+            # Supersession check BEFORE any shared-state write. The cleanup pass above
+            # can be slow (Groq cloud), so a cancel may have interleaved: if it did,
+            # record nothing, paste nothing, and leave state to cancel (it set IDLE).
+            # Check + record + PASTING happen under the lock so cancel can't slip
+            # between the check and the writes.
+            # ponytail: history.record does brief file I/O under the lock; fine for a
+            # single human speaker, revisit only if toggle latency ever shows up.
+            with self._lock:
+                if self._run_seq != rid:
+                    return
+                self.last_text = cleaned
+                # Record before pasting: a valid transcript is saved to history even
+                # if the paste step later fails, so the user never loses their words.
+                history.record(cleaned, self.config.history_size)
+                self.state = State.PASTING
             self.paste(cleaned, self.config.paste_mode)
             if getattr(self.config, "sound_effects", True):
                 sound.play_paste()
-            self.state = State.IDLE
+            self._own_transition(rid, State.IDLE)
         except Exception as exc:
-            if self._cancel_requested.is_set():
-                self.state = State.IDLE
+            if self._run_seq != rid:
                 return
             log.exception("[wisper] processing failed; utterance discarded")
-            self.last_error = repr(exc)
-            self.state = State.ERROR
+            # ERROR is a non-IDLE resting state, so only set it if we still own the
+            # run -- a superseded worker must not resurrect ERROR over cancel's IDLE.
+            with self._lock:
+                if self._run_seq != rid:
+                    return
+                self.last_error = repr(exc)
+                self.state = State.ERROR
             if getattr(self.config, "sound_effects", True):
                 sound.play_failure()
         finally:
-            self._cancel_requested.clear()
-            self.idle_event.set()
+            # Only the live run may release the idle gate / settle state. A superseded
+            # worker leaves both to whoever holds the current run token.
+            if self._run_seq == rid:
+                self.idle_event.set()
 
     def run(self):
         """Start the hotkey listener, then run the tkinter UI on the main thread until

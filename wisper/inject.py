@@ -50,16 +50,34 @@ def _require_deps() -> None:
         )
 
 
+def _copy_resilient(text: str, attempts: int = 3, retry_delay: float = 0.03) -> bool:
+    """pyperclip.copy with retries. The Windows clipboard is a lockable shared
+    resource; another app holding it makes copy raise (PyperclipWindowsException).
+    A transient lock must never bubble up and mark a successful dictation as
+    ERROR, so on final failure we log and return False instead of raising."""
+    for i in range(attempts):
+        try:
+            pyperclip.copy(text)
+            return True
+        except Exception as e:              # transient clipboard lock, etc.
+            if i + 1 < attempts:
+                time.sleep(retry_delay)
+            else:
+                print(f"[inject] clipboard copy failed after {attempts} attempts: {e}")
+    return False
+
+
 def paste_text(text: str, mode: str = "auto") -> None:
     """Drop `text` into the focused field via clipboard + one paste keystroke.
     The text is permanently kept on the clipboard so the user can manually Ctrl+V
     anywhere even if focus was not on a text field."""
     _require_deps()
     if mode == "off":
-        pyperclip.copy(text)      # copy-only no-op paste: leave it on the clipboard, no keystroke
+        _copy_resilient(text)     # copy-only no-op paste: leave it on the clipboard, no keystroke
         return
     keys = _paste_keys(mode)      # validate mode BEFORE touching the clipboard
-    pyperclip.copy(text)          # keep dictated text in clipboard
+    if not _copy_resilient(text): # keep dictated text in clipboard; bail if the clipboard is locked
+        return
     time.sleep(SET_TO_PASTE_DELAY)
     try:
         keyboard.send(keys)       # attempt paste keystroke

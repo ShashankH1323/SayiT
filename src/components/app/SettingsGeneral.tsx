@@ -101,7 +101,7 @@ function HotkeyButton({ value }: { value: string }) {
   return (
     <button
       type="button"
-      className="no-drag inline-flex h-9 items-center gap-1.5 rounded-pill border border-hairline bg-white/70 backdrop-blur-md px-3.5 transition-colors hover:bg-white/90 active:scale-[0.98] focus-visible:outline-none"
+      className="no-drag inline-flex h-9 items-center gap-1.5 rounded-pill border border-hairline bg-white/90 px-3.5 transition-colors hover:bg-white active:scale-[0.98] focus-visible:outline-none"
     >
       <div className="flex items-center gap-1.5">
         {parts.map((p, idx) => (

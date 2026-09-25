@@ -44,7 +44,7 @@ export function About() {
             <button
               type="button"
               onClick={handleCheckUpdate}
-              className="flex w-full items-center justify-between rounded-card border border-hairline bg-white/80 backdrop-blur-md p-3.5 shadow-soft-xs hover:border-accent/30 hover:bg-white hover:shadow-soft-sm transition-all"
+              className="flex w-full items-center justify-between rounded-card border border-hairline bg-white/90 p-3.5 shadow-soft-xs hover:border-accent/30 hover:bg-white hover:shadow-soft-sm transition-all"
             >
               <div className="flex items-center gap-3">
                 <div className="grid h-8 w-8 place-items-center rounded-field bg-accent-soft text-accent">
@@ -72,7 +72,7 @@ export function About() {
 
             <a
               href="mailto:support@sayit.app?subject=Say%20It%20Feedback"
-              className="flex w-full items-center justify-between rounded-card border border-hairline bg-white/80 backdrop-blur-md p-3.5 shadow-soft-xs hover:border-accent/30 hover:bg-white hover:shadow-soft-sm transition-all"
+              className="flex w-full items-center justify-between rounded-card border border-hairline bg-white/90 p-3.5 shadow-soft-xs hover:border-accent/30 hover:bg-white hover:shadow-soft-sm transition-all"
             >
               <div className="flex items-center gap-3">
                 <div className="grid h-8 w-8 place-items-center rounded-field bg-teal-soft text-teal-deep">
@@ -86,7 +86,7 @@ export function About() {
               <ChevronRight className="h-4 w-4 text-ink-tertiary" />
             </a>
 
-            <div className="flex w-full items-center justify-between rounded-card border border-hairline bg-white/80 backdrop-blur-md p-3.5 shadow-soft-xs">
+            <div className="flex w-full items-center justify-between rounded-card border border-hairline bg-white/90 p-3.5 shadow-soft-xs">
               <div className="flex items-center gap-3">
                 <div className="grid h-8 w-8 place-items-center rounded-field bg-ink/5 text-ink-secondary">
                   <Shield className="h-4 w-4" />
